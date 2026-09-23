@@ -1,0 +1,40 @@
+type Organization {
+  id: ID!
+  name: String!
+  slug: String!
+  plan: String!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type User {
+  id: ID!
+  orgId: ID!
+  name: String!
+  email: String!
+  role: String!
+  lastLogin: String
+  createdAt: String!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+  org: Organization!
+}
+
+input RegisterInput {
+  name: String!
+  email: String!
+  password: String!
+  orgName: String!
+}
+
+type Query {
+  me: User!
+}
+
+type Mutation {
+  register(input: RegisterInput!): AuthPayload!
+  login(email: String!, password: String!): AuthPayload!
+}

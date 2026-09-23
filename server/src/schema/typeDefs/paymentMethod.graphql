@@ -1,0 +1,27 @@
+type PaymentMethod {
+  id: ID!
+  orgId: ID!
+  name: String!
+  type: String!
+  accountNumber: String
+  isActive: Boolean!
+  createdAt: String!
+}
+
+input PaymentMethodInput {
+  name: String!
+  type: String
+  accountNumber: String
+  isActive: Boolean
+}
+
+extend type Query {
+  paymentMethods: [PaymentMethod!]!
+  paymentMethod(id: ID!): PaymentMethod!
+}
+
+extend type Mutation {
+  createPaymentMethod(input: PaymentMethodInput!): PaymentMethod!
+  updatePaymentMethod(id: ID!, input: PaymentMethodInput!): PaymentMethod!
+  deletePaymentMethod(id: ID!): Boolean!
+}

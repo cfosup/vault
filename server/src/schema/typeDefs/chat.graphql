@@ -1,0 +1,22 @@
+type ChatMessage {
+  role: String!
+  content: String!
+  timestamp: String!
+}
+
+type ChatSession {
+  id: ID!
+  sessionId: String!
+  messages: [ChatMessage!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+extend type Query {
+  chatSession(sessionId: String!): ChatSession
+}
+
+extend type Mutation {
+  sendChatMessage(sessionId: String!, message: String!): ChatMessage!
+  clearChatSession(sessionId: String!): Boolean!
+}

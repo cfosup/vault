@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpenseFlow — Expense Ledger</title>
+    <meta name="description" content="Expense tracking interface for ExpenseFlow with AI assistant.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="js/theme.js?v=3"></script>
+    <link rel="stylesheet" href="css/styles.css?v=3">
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">
+            <div class="nav-logo-icon">EF</div>
+            ExpenseFlow
+        </a>
+        <div class="nav-right">
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle dark/light mode">
+                <svg class="icon-sun" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+            <a href="dashboard.html" class="btn btn-outline btn-sm" title="Dashboard">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Dashboard
+            </a>
+            <a href="income.html" class="btn btn-outline btn-sm" title="Add Income">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Income
+            </a>
+            <a href="expenses.html" class="btn btn-outline btn-sm" title="View Expenses">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                View Expenses
+            </a>
+            <a href="income-list.html" class="btn btn-outline btn-sm" title="View Income">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                View Income
+            </a>
+            <button class="btn btn-outline btn-sm" onclick="toggleChat()" title="AI Assistant">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Assistant
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main-content">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+        <div>
+            <h1 class="page-title">Record Expenses</h1>
+            <p class="page-desc">Log expenses and sync them to your Zoho Books ledger.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="openAddCompanyModal()" title="Add Company">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Add Company
+            </button>
+        </div>
+    </div>
+
+    <div class="form-wrapper">
+        <form id="bulkExpenseForm">
+            <div id="expenseContainer"></div>
+            <div class="form-total-bar">
+                <span class="form-total-label">Total</span>
+                <span class="form-total-value" id="runningTotal">₹0.00</span>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline btn-sm" id="addRowBtn">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    Add Entry
+                </button>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    Sync to Zoho Books
+                </button>
+            </div>
+            <div id="statusMessage" class="message"></div>
+        </form>
+    </div>
+</main>
+
+<footer class="footer">
+    &copy; 2026 ExpenseFlow &mdash; Synced with Zoho Books via n8n
+</footer>
+
+<!-- CHAT TOGGLE -->
+<button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open AI Assistant">
+    <svg id="chatIconOpen" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <svg id="chatIconClose" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+
+<!-- CHAT PANEL -->
+<div class="chat-panel" id="chatPanel">
+    <div class="chat-header">
+        <div class="chat-header-avatar">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <div>
+            <div class="chat-header-title">Financial Assistant</div>
+            <div class="chat-header-status">Online</div>
+        </div>
+        <div class="chat-header-actions">
+            <button class="chat-clear-btn" onclick="clearChat()" title="Clear chat">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+        </div>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg bot">Hello! I'm your ExpenseFlow assistant. How can I help you today?</div>
+    </div>
+    <div class="chat-error" id="chatError"></div>
+    <div class="chat-input-area">
+        <textarea class="chat-input" id="chatInput" placeholder="Type a message..." rows="1"></textarea>
+        <button class="chat-send" id="chatSend" onclick="sendChatMessage()" aria-label="Send">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</div>
+
+<!-- JS: config first, then categories, app, chat -->
+<script src="js/config.js?v=5"></script>
+<script src="js/toast.js?v=5"></script>
+<script src="js/companies.js?v=5"></script>
+<script src="js/shortcuts.js?v=5"></script>
+<script src="js/categories.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
+<script src="js/chat.js?v=5"></script>
+
+</body>
+</html>

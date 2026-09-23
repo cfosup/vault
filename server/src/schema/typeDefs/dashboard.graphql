@@ -1,0 +1,68 @@
+type DashboardSummary {
+  totalExpenses: Float!
+  totalIncome: Float!
+  netBalance: Float!
+  expenseCount: Int!
+  incomeCount: Int!
+  topCategory: String
+  topVendor: String
+}
+
+type CategoryBreakdown {
+  categoryName: String!
+  amount: Float!
+  count: Int!
+  percentage: Float!
+}
+
+type MonthlyTrend {
+  month: String!
+  year: Int!
+  amount: Float!
+}
+
+type IncomeExpenseTrend {
+  month: String!
+  year: Int!
+  expenses: Float!
+  income: Float!
+  net: Float!
+}
+
+type VendorStat {
+  vendor: String!
+  amount: Float!
+  count: Int!
+}
+
+type PaymentMethodStat {
+  paymentMethodName: String!
+  amount: Float!
+  count: Int!
+}
+
+type CompanySpendStat {
+  companyId: ID!
+  companyName: String!
+  expenses: Float!
+  income: Float!
+  netBalance: Float!
+  expenseCount: Int!
+  percentage: Float!
+}
+
+input DashFilter {
+  companyId: ID
+  startDate: String
+  endDate: String
+}
+
+extend type Query {
+  dashboardSummary(filter: DashFilter): DashboardSummary!
+  categoryBreakdown(filter: DashFilter): [CategoryBreakdown!]!
+  monthlyTrend(months: Int, companyId: ID): [MonthlyTrend!]!
+  incomeVsExpenseTrend(months: Int, companyId: ID): [IncomeExpenseTrend!]!
+  topVendors(filter: DashFilter, limit: Int): [VendorStat!]!
+  paymentMethodBreakdown(filter: DashFilter): [PaymentMethodStat!]!
+  companySpendBreakdown(filter: DashFilter): [CompanySpendStat!]!
+}

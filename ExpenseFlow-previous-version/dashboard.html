@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpenseFlow — Expense Dashboard</title>
+    <meta name="description" content="Visual analytics dashboard for ExpenseFlow expenses — charts, trends, and category breakdowns.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="js/theme.js?v=3"></script>
+    <link rel="stylesheet" href="css/styles.css?v=3">
+    <link rel="stylesheet" href="css/dashboard.css?v=3">
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+    <div class="nav-inner" style="max-width:1200px;">
+        <a href="index.html" class="nav-logo">
+            <div class="nav-logo-icon">EF</div>
+            ExpenseFlow
+        </a>
+        <div class="nav-right">
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle dark/light mode">
+                <svg class="icon-sun" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+            <a href="index.html" class="btn btn-outline btn-sm" title="Add Expense">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Add Expense
+            </a>
+            <a href="income.html" class="btn btn-outline btn-sm" title="Add Income">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Income
+            </a>
+            <a href="expenses.html" class="btn btn-outline btn-sm" title="View Expenses">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                View Expenses
+            </a>
+            <a href="income-list.html" class="btn btn-outline btn-sm" title="View Income">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                View Income
+            </a>
+            <button class="btn btn-outline btn-sm" onclick="toggleChat()" title="AI Assistant">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Assistant
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main-content main-wide">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+        <div>
+            <h1 class="page-title">Expense Dashboard</h1>
+            <p class="page-desc">Analytics overview of your ExpenseFlow expenses.</p>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-outline btn-sm" id="dashRefreshBtn" onclick="loadDashboard()">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Date Filter & Quick Presets -->
+    <div class="dash-filter-bar" id="dashFilterBar">
+        <div class="dash-filter-presets">
+            <button class="dash-preset" data-range="all" onclick="setPreset(this, 'all')">All Time</button>
+            <button class="dash-preset active" data-range="thisMonth" onclick="setPreset(this, 'thisMonth')">This Month</button>
+            <button class="dash-preset" data-range="lastMonth" onclick="setPreset(this, 'lastMonth')">Last Month</button>
+            <button class="dash-preset" data-range="last3" onclick="setPreset(this, 'last3')">Last 3 Months</button>
+            <button class="dash-preset" data-range="last6" onclick="setPreset(this, 'last6')">Last 6 Months</button>
+            <button class="dash-preset" data-range="ytd" onclick="setPreset(this, 'ytd')">YTD</button>
+        </div>
+        <div class="dash-filter-custom">
+            <div class="filter-group">
+                <label class="filter-label">Company</label>
+                <select id="dashCompany" class="filter-date" onchange="applyDashFilters()">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">From</label>
+                <input type="date" id="dashFrom" class="filter-date" onchange="applyDashFilters()">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">To</label>
+                <input type="date" id="dashTo" class="filter-date" onchange="applyDashFilters()">
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="dash-loading" id="dashLoading">
+        <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+        <span>Loading expense data…</span>
+    </div>
+
+    <!-- Error State -->
+    <div class="dash-error hidden" id="dashError">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span id="dashErrorMsg">Failed to load expense data.</span>
+        <button class="btn btn-outline btn-sm" onclick="loadDashboard()" style="margin-top:8px;">Try Again</button>
+    </div>
+
+    <!-- Dashboard Content (hidden until data loads) -->
+    <div class="dash-content hidden" id="dashContent">
+
+        <!-- KPI Cards -->
+        <div class="kpi-row" id="kpiRow">
+            <div class="kpi-card">
+                <div class="kpi-icon kpi-icon-avg">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Total Inflow (Income)</div>
+                    <div class="kpi-value" id="kpiTotalIncome">—</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon kpi-icon-total">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1v22M5 8h14M5 16h14"/></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Total Outflow (Expenses)</div>
+                    <div class="kpi-value" id="kpiTotalSpent">—</div>
+                </div>
+            </div>
+            <div class="kpi-card" id="kpiNetCard">
+                <div class="kpi-icon kpi-icon-count" id="kpiNetIcon">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Net Balance</div>
+                    <div class="kpi-value" id="kpiNetBalance">—</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon kpi-icon-count">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Transactions</div>
+                    <div class="kpi-value" id="kpiCount">—</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon kpi-icon-high">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0110 10"/></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-label">Active Companies</div>
+                    <div class="kpi-value" id="kpiCompaniesActive">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart Insights -->
+        <div class="insights-strip" id="insightsStrip">
+            <div class="insights-scroll" id="insightsScroll"></div>
+        </div>
+
+        <!-- Chart Grid -->
+        <div class="chart-grid">
+            <!-- Category Pie Chart -->
+            <div class="chart-card chart-card-pie" id="chartPieCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Spending by Category</h2>
+                    <span class="chart-subtitle">Proportional split</span>
+                </div>
+                <div class="chart-body chart-body-pie">
+                    <canvas id="chartPie" width="280" height="280"></canvas>
+                    <div class="pie-legend" id="pieLegend"></div>
+                </div>
+            </div>
+
+            <!-- Income by Company Pie Chart -->
+            <div class="chart-card chart-card-pie" id="chartIncomeCompanyCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Income by Company</h2>
+                    <span class="chart-subtitle">Revenue per company breakdown</span>
+                </div>
+                <div class="chart-body chart-body-pie">
+                    <canvas id="chartIncomeCompany" width="240" height="240"></canvas>
+                    <div class="pie-legend" id="incomeCompanyLegend"></div>
+                </div>
+            </div>
+
+            <!-- Monthly Spending Trend -->
+            <div class="chart-card chart-card-bar" id="chartBarCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Monthly Spending Trend</h2>
+                    <span class="chart-subtitle">Aggregated by month</span>
+                </div>
+                <div class="chart-body">
+                    <canvas id="chartBar"></canvas>
+                </div>
+            </div>
+
+            <!-- Monthly Cash Flow Bar Chart -->
+            <div class="chart-card chart-card-bar" id="chartCashFlowCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Monthly Cash Flow</h2>
+                    <span class="chart-subtitle">Inflow (Income) vs Outflow (Expenses)</span>
+                </div>
+                <div class="chart-body">
+                    <canvas id="chartCashFlow"></canvas>
+                </div>
+            </div>
+
+            <!-- Top 5 Categories -->
+            <div class="chart-card chart-card-top5" id="chartTop5Card">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Top 5 Categories</h2>
+                    <span class="chart-subtitle">Highest spenders</span>
+                </div>
+                <div class="chart-body">
+                    <div class="top5-list" id="top5List"></div>
+                </div>
+            </div>
+
+            <!-- Daily Spending Trend -->
+            <div class="chart-card chart-card-daily" id="chartDailyCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Daily Spending</h2>
+                    <span class="chart-subtitle">Day-by-day breakdown</span>
+                </div>
+                <div class="chart-body">
+                    <canvas id="chartDaily"></canvas>
+                </div>
+            </div>
+
+            <!-- Payment Method Breakdown -->
+            <div class="chart-card chart-card-payment" id="chartPaymentCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Payment Methods</h2>
+                    <span class="chart-subtitle">How you're paying</span>
+                </div>
+                <div class="chart-body chart-body-pie">
+                    <canvas id="chartPayment" width="240" height="240"></canvas>
+                    <div class="pie-legend" id="paymentLegend"></div>
+                </div>
+            </div>
+
+            <!-- Recent Expenses -->
+            <div class="chart-card chart-card-recent" id="chartRecentCard">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Recent Expenses</h2>
+                    <span class="chart-subtitle">Latest transactions</span>
+                </div>
+                <div class="chart-body">
+                    <div class="recent-list" id="recentList"></div>
+                </div>
+            </div>
+
+            <!-- Company Income vs Expenses Breakdown -->
+            <div class="chart-card chart-card-company" id="chartCompanyCard" style="grid-column: 1 / -1;">
+                <div class="chart-card-header">
+                    <h2 class="chart-title">Company Breakdown</h2>
+                    <span class="chart-subtitle">Income vs Expenses per company</span>
+                </div>
+                <div class="chart-body">
+                    <canvas id="chartCompany"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<footer class="footer">
+    &copy; 2026 ExpenseFlow &mdash; Synced with Zoho Books via n8n
+</footer>
+
+<!-- CHAT TOGGLE -->
+<button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open AI Assistant">
+    <svg id="chatIconOpen" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <svg id="chatIconClose" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+
+<!-- CHAT PANEL -->
+<div class="chat-panel" id="chatPanel">
+    <div class="chat-header">
+        <div class="chat-header-avatar">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <div>
+            <div class="chat-header-title">Financial Assistant</div>
+            <div class="chat-header-status">Online</div>
+        </div>
+        <div class="chat-header-actions">
+            <button class="chat-clear-btn" onclick="clearChat()" title="Clear chat">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+        </div>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg bot">Hello! I'm your ExpenseFlow assistant. How can I help you today?</div>
+    </div>
+    <div class="chat-error" id="chatError"></div>
+    <div class="chat-input-area">
+        <textarea class="chat-input" id="chatInput" placeholder="Type a message..." rows="1"></textarea>
+        <button class="chat-send" id="chatSend" onclick="sendChatMessage()" aria-label="Send">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</div>
+
+<script src="js/config.js?v=5"></script>
+<script src="js/toast.js?v=5"></script>
+<script src="js/companies.js?v=5"></script>
+<script src="js/shortcuts.js?v=5"></script>
+<script src="js/chat.js?v=5"></script>
+<script src="js/dashboard.js?v=5"></script>
+
+</body>
+</html>

@@ -1,0 +1,60 @@
+type Expense {
+  id: ID!
+  orgId: ID!
+  companyId: ID!
+  date: String!
+  categoryId: ID!
+  categoryName: String!
+  subcategory: String
+  amount: Float!
+  vendor: String
+  paymentMethodId: ID
+  paymentMethodName: String
+  notes: String
+  budgetBucketId: ID
+  createdBy: ID
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ExpensePage {
+  expenses: [Expense!]!
+  totalCount: Int!
+  page: Int!
+  totalPages: Int!
+}
+
+input ExpenseInput {
+  companyId: ID!
+  date: String
+  categoryId: ID!
+  categoryName: String
+  subcategory: String
+  amount: Float!
+  vendor: String
+  paymentMethodId: ID
+  paymentMethodName: String
+  notes: String
+  budgetBucketId: ID
+}
+
+input ExpenseFilter {
+  companyId: ID
+  categoryId: ID
+  startDate: String
+  endDate: String
+  search: String
+  vendor: String
+  paymentMethodId: ID
+}
+
+extend type Query {
+  expenses(filter: ExpenseFilter, page: Int, limit: Int): ExpensePage!
+  expense(id: ID!): Expense!
+}
+
+extend type Mutation {
+  createExpenses(inputs: [ExpenseInput!]!): [Expense!]!
+  updateExpense(id: ID!, input: ExpenseInput!): Expense!
+  deleteExpense(id: ID!): Boolean!
+}

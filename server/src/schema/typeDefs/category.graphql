@@ -1,0 +1,48 @@
+type Subcategory {
+  name: String!
+  items: [String!]!
+  isCustom: Boolean!
+}
+
+type Category {
+  id: ID!
+  orgId: ID
+  companyId: ID
+  name: String!
+  group: String!
+  groupLabel: String!
+  subcategories: [Subcategory!]!
+  isGlobal: Boolean!
+  createdAt: String!
+}
+
+input SubcategoryInput {
+  name: String!
+  items: [String!]
+  isCustom: Boolean
+}
+
+input CategoryInput {
+  companyId: ID
+  name: String!
+  group: String
+  groupLabel: String
+  subcategories: [SubcategoryInput!]
+}
+
+extend type Query {
+  categories(companyId: ID): [Category!]!
+  category(id: ID!): Category!
+}
+
+extend type Mutation {
+  createCategory(input: CategoryInput!): Category!
+  updateCategory(id: ID!, input: CategoryInput!): Category!
+  deleteCategory(id: ID!): Boolean!
+  deleteCategorySection(companyId: ID!, group: String!): Boolean!
+  addSubcategory(categoryId: ID!, subcategoryName: String!, items: [String!]): Category!
+  updateSubcategoryItems(categoryId: ID!, subcategoryName: String!, items: [String!]!): Category!
+  deleteSubcategory(categoryId: ID!, subcategoryName: String!): Category!
+  resetCompanyCategoriesToCore(companyId: ID!): [Category!]!
+}
+

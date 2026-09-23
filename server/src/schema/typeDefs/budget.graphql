@@ -1,0 +1,70 @@
+type SubcatBudget {
+  subcategory: String!
+  limitAmount: Float!
+}
+
+type SubcatBudgetUsage {
+  subcategory: String!
+  limitAmount: Float!
+  usedAmount: Float!
+  remainingAmount: Float!
+  percentUsed: Float!
+  isOverBudget: Boolean!
+}
+
+type BudgetBucket {
+  id: ID!
+  orgId: ID!
+  companyId: ID!
+  categoryId: ID!
+  categoryName: String!
+  name: String!
+  limitAmount: Float!
+  period: String!
+  startDate: String
+  endDate: String
+  alertThreshold: Float!
+  subcatBudgets: [SubcatBudget!]
+  createdAt: String!
+}
+
+type BudgetUsage {
+  bucket: BudgetBucket!
+  usedAmount: Float!
+  remainingAmount: Float!
+  percentUsed: Float!
+  isOverBudget: Boolean!
+  isNearLimit: Boolean!
+  subcatUsages: [SubcatBudgetUsage!]
+}
+
+input SubcatBudgetInput {
+  subcategory: String!
+  limitAmount: Float!
+}
+
+input BudgetBucketInput {
+  companyId: ID!
+  categoryId: ID!
+  categoryName: String
+  name: String!
+  limitAmount: Float!
+  period: String
+  startDate: String
+  endDate: String
+  alertThreshold: Float
+  subcatBudgets: [SubcatBudgetInput!]
+}
+
+extend type Query {
+  budgetBuckets(companyId: ID): [BudgetBucket!]!
+  budgetBucket(id: ID!): BudgetBucket!
+  budgetUsage(bucketId: ID!): BudgetUsage!
+  allBudgetUsages(companyId: ID): [BudgetUsage!]!
+}
+
+extend type Mutation {
+  createBudgetBucket(input: BudgetBucketInput!): BudgetBucket!
+  updateBudgetBucket(id: ID!, input: BudgetBucketInput!): BudgetBucket!
+  deleteBudgetBucket(id: ID!): Boolean!
+}

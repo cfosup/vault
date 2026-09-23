@@ -1,0 +1,45 @@
+type Income {
+  id: ID!
+  orgId: ID!
+  companyId: ID!
+  date: String!
+  amount: Float!
+  source: String!
+  notes: String
+  createdBy: ID
+  createdAt: String!
+  updatedAt: String!
+}
+
+type IncomePage {
+  incomes: [Income!]!
+  totalCount: Int!
+  page: Int!
+  totalPages: Int!
+}
+
+input IncomeInput {
+  companyId: ID!
+  date: String
+  amount: Float!
+  source: String!
+  notes: String
+}
+
+input IncomeFilter {
+  companyId: ID
+  startDate: String
+  endDate: String
+  search: String
+}
+
+extend type Query {
+  incomes(filter: IncomeFilter, page: Int, limit: Int): IncomePage!
+  income(id: ID!): Income!
+}
+
+extend type Mutation {
+  createIncomes(inputs: [IncomeInput!]!): [Income!]!
+  updateIncome(id: ID!, input: IncomeInput!): Income!
+  deleteIncome(id: ID!): Boolean!
+}
