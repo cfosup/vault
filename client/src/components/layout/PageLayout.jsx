@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navbar } from './Navbar';
 import { ChatPanel } from '../chat/ChatPanel';
+import { useAuthStore } from '../../store/authStore';
 
 export const PageLayout = ({ children }) => {
   return (

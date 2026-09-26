@@ -3,7 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@apollo/client/react';
 import { LOGIN, REGISTER } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
-import { ArrowRight, ShieldCheck, TrendingUp, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  ShieldCheck,
+  TrendingUp,
+  Lock,
+  Mail,
+  User,
+  Building,
+  AlertCircle,
+} from 'lucide-react';
 
 export const LoginPage = () => {
   const [isRegister, setIsRegister] = useState(false);
@@ -54,6 +63,8 @@ export const LoginPage = () => {
     }
   };
 
+  const isSubmitting = loginLoading || registerLoading;
+
   return (
     <div
       style={{
@@ -61,56 +72,62 @@ export const LoginPage = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1.5rem',
-        background: 'radial-gradient(circle at 50% 20%, rgba(124, 58, 237, 0.12), transparent 60%), var(--bg-app)',
+        padding: '2rem 1.25rem',
+        backgroundColor: 'var(--bg-app)',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '440px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <div style={{ width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Brand Header */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div
+            className="brand-icon"
             style={{
-              width: '54px',
-              height: '54px',
+              width: '48px',
+              height: '48px',
               borderRadius: 'var(--radius)',
-              background: 'linear-gradient(135deg, var(--primary), #ec4899)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: '1.75rem',
-              boxShadow: '0 8px 24px var(--primary-glow)',
-              marginBottom: '1rem',
+              fontSize: '1.6rem',
+              boxShadow: 'var(--shadow-sm)',
+              marginBottom: '0.85rem',
             }}
           >
-            ₹
+            V
           </div>
-          <h1 style={{ fontSize: '1.75rem', marginBottom: '0.4rem' }}>ExpenseFlow SaaS</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Multi-tenant company financial tracking, budget limits & AI insights
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+            Vault
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '340px', lineHeight: 1.45 }}>
+            Enterprise multi-entity financial intelligence, proactive budget caps & real-time ledgers
           </p>
         </div>
 
-        <div className="card">
+        {/* Auth Card */}
+        <div className="card" style={{ padding: '2rem' }}>
+          {/* Segmented Tab Switcher */}
           <div
             style={{
               display: 'flex',
-              borderBottom: '1px solid var(--border-color)',
+              background: 'var(--bg-surface)',
+              padding: '0.3rem',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border-color)',
               marginBottom: '1.5rem',
+              gap: '0.25rem',
             }}
           >
             <button
               type="button"
               style={{
                 flex: 1,
-                padding: '0.75rem',
-                background: 'none',
+                padding: '0.55rem',
+                background: !isRegister ? 'var(--primary)' : 'transparent',
                 border: 'none',
-                borderBottom: !isRegister ? '2px solid var(--primary)' : '2px solid transparent',
-                color: !isRegister ? 'var(--primary)' : 'var(--text-muted)',
-                fontWeight: !isRegister ? 600 : 500,
+                color: !isRegister ? '#fff' : 'var(--text-muted)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.85rem',
+                transition: 'all 0.15s ease',
+                boxShadow: !isRegister ? 'var(--shadow-xs)' : 'none',
               }}
               onClick={() => {
                 setIsRegister(false);
@@ -123,14 +140,16 @@ export const LoginPage = () => {
               type="button"
               style={{
                 flex: 1,
-                padding: '0.75rem',
-                background: 'none',
+                padding: '0.55rem',
+                background: isRegister ? 'var(--primary)' : 'transparent',
                 border: 'none',
-                borderBottom: isRegister ? '2px solid var(--primary)' : '2px solid transparent',
-                color: isRegister ? 'var(--primary)' : 'var(--text-muted)',
-                fontWeight: isRegister ? 600 : 500,
+                color: isRegister ? '#fff' : 'var(--text-muted)',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.85rem',
+                transition: 'all 0.15s ease',
+                boxShadow: isRegister ? 'var(--shadow-xs)' : 'none',
               }}
               onClick={() => {
                 setIsRegister(true);
@@ -141,108 +160,137 @@ export const LoginPage = () => {
             </button>
           </div>
 
+          {/* Error Banner */}
           {errorMsg && (
             <div
               style={{
                 padding: '0.75rem 1rem',
                 borderRadius: 'var(--radius-sm)',
                 background: 'var(--danger-bg)',
+                border: '1px solid var(--danger-border)',
                 color: 'var(--danger)',
-                fontSize: '0.85rem',
+                fontSize: '0.825rem',
                 marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
               }}
             >
-              {errorMsg}
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{errorMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {isRegister && (
               <>
                 <div className="form-group">
-                  <label className="form-label">Your Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g. Ajay Sharma"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
+                  <label className="form-label">Full Name</label>
+                  <div className="input-with-icon">
+                    <span className="input-icon"><User size={15} /></span>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. John Doe"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Organization / Company Group Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g. Bright Digital Corp"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    required
-                  />
+                  <label className="form-label">Organization Name</label>
+                  <div className="input-with-icon">
+                    <span className="input-icon"><Building size={15} /></span>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Acme Holdings Inc."
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
               </>
             )}
 
             <div className="form-group">
               <label className="form-label">Email Address</label>
-              <input
-                type="email"
-                className="input"
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <div className="input-with-icon">
+                <span className="input-icon"><Mail size={15} /></span>
+                <input
+                  type="email"
+                  className="input"
+                  placeholder="name@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <div className="form-group">
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="input-with-icon">
+                <span className="input-icon"><Lock size={15} /></span>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ width: '100%', padding: '0.75rem' }}
-              disabled={loginLoading || registerLoading}
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
+                padding: '0.65rem',
+                fontSize: '0.875rem',
+                marginTop: '0.35rem',
+              }}
             >
-              {loginLoading || registerLoading
-                ? 'Processing...'
-                : isRegister
-                ? 'Register & Launch Workspace'
-                : 'Sign In to ExpenseFlow'}
-              <ArrowRight size={16} />
+              {isSubmitting ? (
+                'Processing...'
+              ) : isRegister ? (
+                <>
+                  Create Account <ArrowRight size={15} />
+                </>
+              ) : (
+                <>
+                  Sign In <ArrowRight size={15} />
+                </>
+              )}
             </button>
           </form>
 
+          {/* Security Banner */}
           <div
             style={{
-              marginTop: '1.5rem',
+              marginTop: '1.25rem',
               paddingTop: '1rem',
               borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '1.5rem',
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
+              textAlign: 'center',
+              fontSize: '0.78rem',
+              color: 'var(--text-subtle)',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <ShieldCheck size={14} /> End-to-end multi-tenant
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <Sparkles size={14} /> Groq AI Enabled
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1.25rem' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <ShieldCheck size={13} style={{ color: 'var(--success)' }} /> 256-bit Encrypted
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <TrendingUp size={13} style={{ color: 'var(--primary)' }} /> Real-Time Ledgers
+              </span>
+            </div>
           </div>
         </div>
       </div>

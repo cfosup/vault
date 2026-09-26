@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client/react';
 import {
@@ -11,14 +11,16 @@ import {
   LogOut,
   Moon,
   Sun,
-  ShieldCheck,
   ChevronDown,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { GET_COMPANIES } from '../../graphql/queries';
 
 export const Navbar = () => {
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, org, logout, theme, toggleTheme, activeCompanyId, setActiveCompanyId } = useAuthStore();
   const { data: companyData } = useQuery(GET_COMPANIES);
 
@@ -39,156 +41,186 @@ export const Navbar = () => {
       .toUpperCase();
   };
 
+  const navItems = [
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/expenses', label: 'Expenses', icon: Receipt },
+    { to: '/income', label: 'Income', icon: TrendingUp },
+    { to: '/budgets', label: 'Budgets', icon: PieChart },
+    { to: '/companies', label: 'Companies', icon: Building2 },
+    { to: '/settings', label: 'Settings', icon: Settings },
+  ];
+
   return (
-    <header className="navbar">
-      <div className="navbar-inner">
-        {/* Brand */}
-        <NavLink to="/" className="navbar-brand">
-          <div className="brand-icon">₹</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>ExpenseFlow</span>
-              <span className="badge badge-primary" style={{ fontSize: '0.62rem', padding: '0.08rem 0.4rem' }}>
-                B2B PRO
-              </span>
+    <>
+      <header className="navbar">
+        <div className="navbar-inner">
+          {/* Brand */}
+          <NavLink to="/" className="navbar-brand">
+            <div className="brand-icon">V</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span>Vault</span>
+                <span className="badge badge-primary" style={{ fontSize: '0.62rem', padding: '0.08rem 0.45rem' }}>
+                  PRO
+                </span>
+              </div>
             </div>
-          </div>
-        </NavLink>
-
-        {/* Segmented Navigation */}
-        <nav className="nav-links">
-          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>
-            <LayoutDashboard size={15} />
-            <span>Dashboard</span>
           </NavLink>
 
-          <NavLink to="/expenses" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Receipt size={15} />
-            <span>Expenses</span>
-          </NavLink>
+          {/* Desktop Navigation */}
+          <nav className="nav-links">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                >
+                  <Icon size={15} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
 
-          <NavLink to="/income" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <TrendingUp size={15} />
-            <span>Income</span>
-          </NavLink>
+          {/* Actions & Profile */}
+          <div className="nav-actions">
+            {/* Company Switcher */}
+            {companies.length > 0 && (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <select
+                  className="company-select"
+                  value={activeCompanyId || ''}
+                  onChange={(e) => setActiveCompanyId(e.target.value || null)}
+                  title="Filter Workspace by Legal Entity"
+                >
+                  <option value="">All Entities (Consolidated)</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={13}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    pointerEvents: 'none',
+                    color: 'var(--text-muted)',
+                  }}
+                />
+              </div>
+            )}
 
-          <NavLink to="/budgets" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <PieChart size={15} />
-            <span>Budgets</span>
-          </NavLink>
+            {/* Theme Toggle */}
+            <button
+              className="btn btn-secondary btn-icon"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun size={15} style={{ color: '#fbbf24' }} />
+              ) : (
+                <Moon size={15} style={{ color: '#6366f1' }} />
+              )}
+            </button>
 
-          <NavLink to="/companies" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Building2 size={15} />
-            <span>Companies</span>
-          </NavLink>
-
-          <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <Settings size={15} />
-            <span>Settings</span>
-          </NavLink>
-        </nav>
-
-        {/* Actions & Profile */}
-        <div className="nav-actions">
-          {/* Company Switcher */}
-          {companies.length > 0 && (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select
-                className="company-select"
-                value={activeCompanyId || ''}
-                onChange={(e) => setActiveCompanyId(e.target.value || null)}
-                title="Filter Workspace by Legal Entity"
-                style={{ paddingRight: '1.8rem', appearance: 'none', WebkitAppearance: 'none' }}
-              >
-                <option value="">All Entities (Consolidated)</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.isCoreBranch ? '★ Core' : ''}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={13}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  pointerEvents: 'none',
-                  color: 'var(--text-muted)',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Theme Toggle */}
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{ padding: '0.45rem', borderRadius: 'var(--radius)' }}
-          >
-            {theme === 'dark' ? <Sun size={15} style={{ color: '#fbbf24' }} /> : <Moon size={15} style={{ color: '#6366f1' }} />}
-          </button>
-
-          {/* User Profile Capsule */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '0.25rem 0.5rem 0.25rem 0.35rem',
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
+            {/* User Profile Capsule */}
             <div
               style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: 'var(--radius-full)',
-                background: 'var(--primary-gradient)',
-                color: '#fff',
-                fontSize: '0.72rem',
-                fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: '0.55rem',
+                padding: '0.25rem 0.55rem 0.25rem 0.35rem',
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-color)',
               }}
             >
-              {getInitials(user?.name)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                {user?.name?.split(' ')[0]}
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                {org?.name || 'Workspace'}
-              </span>
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'var(--shadow-xs)',
+                  flexShrink: 0,
+                }}
+              >
+                {getInitials(user?.name)}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                  {user?.name?.split(' ')[0] || 'User'}
+                </span>
+                <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)' }}>
+                  {org?.name || 'Workspace'}
+                </span>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                title="Sign Out"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0.2rem',
+                  marginLeft: '0.25rem',
+                  transition: 'color 0.15s ease',
+                  borderRadius: 'var(--radius-xs)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+              >
+                <LogOut size={14} />
+              </button>
             </div>
 
+            {/* Mobile Hamburger Toggle */}
             <button
-              onClick={handleLogout}
-              title="Sign Out"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0.2rem',
-                marginLeft: '0.2rem',
-                transition: 'color 0.15s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+              className="mobile-nav-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle navigation menu"
             >
-              <LogOut size={14} />
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
           </div>
         </div>
+      </header>
+
+      {/* Mobile Drawer */}
+      <div className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              style={{ padding: '0.65rem 0.85rem', width: '100%' }}
+            >
+              <Icon size={16} />
+              <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
+            </NavLink>
+          );
+        })}
       </div>
-    </header>
+    </>
   );
 };
 

@@ -11,6 +11,7 @@ import { typeDefs } from './schema/typeDefs/index.js';
 import { resolvers } from './schema/resolvers/index.js';
 import { getAuthContext } from './middleware/auth.js';
 import { exportExpensesCSV, exportIncomeCSV, exportCategoriesCSV } from './controllers/exportController.js';
+import { initKeepAlive } from './services/keepAliveService.js';
 
 dotenv.config();
 
@@ -28,24 +29,75 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// Basic middleware
+// Flexible CORS (supports Vercel production + preview subdomains, localhost, and custom domain)
 app.use(
   cors({
-    origin: [CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://studio.apollographql.com'],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        origin === CLIENT_URL ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        origin === 'https://studio.apollographql.com'
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint (used by keep-alive triggers and monitoring)
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
     status: 'ok',
+    service: 'Vault API',
     db: dbStatus,
     timestamp: new Date().toISOString(),
     version: '1.0.0',
   });
+});
+
+// Admin Reset Database Endpoint (Clean slate for new project)
+app.post('/api/admin/reset-database', async (req, res) => {
+  try {
+    const {
+      Organization,
+      User,
+      Company,
+      Category,
+      PaymentMethod,
+      BudgetBucket,
+      Expense,
+      Income,
+      ChatSession,
+    } = await import('./models/index.js');
+    const { seedCategories } = await import('./services/seedService.js');
+
+    await Promise.all([
+      Expense.deleteMany({}),
+      Income.deleteMany({}),
+      BudgetBucket.deleteMany({}),
+      ChatSession.deleteMany({}),
+      PaymentMethod.deleteMany({}),
+      Company.deleteMany({}),
+      User.deleteMany({}),
+      Organization.deleteMany({}),
+      Category.deleteMany({}),
+    ]);
+
+    await seedCategories();
+    res.status(200).json({
+      success: true,
+      message: 'Database completely wiped and reset to a clean slate.',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // REST CSV Data Export Endpoints
@@ -88,10 +140,11 @@ export const startServer = async (customPort = PORT, customUri = process.env.MON
 
     return new Promise((resolve) => {
       server = app.listen(customPort, () => {
-        console.log(`[Server] ExpenseFlow API running on http://localhost:${customPort}`);
+        console.log(`[Server] Vault API running on http://localhost:${customPort}`);
         console.log(`[Server] GraphQL endpoint: http://localhost:${customPort}/graphql`);
         console.log(`[Server] Health check: http://localhost:${customPort}/health`);
         console.log(`[Server] CSV Exports: http://localhost:${customPort}/export/expenses`);
+        initKeepAlive();
         resolve({ app, server, apolloServer });
       });
     });

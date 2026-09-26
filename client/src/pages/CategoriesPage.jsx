@@ -35,21 +35,34 @@ export const CategoriesPage = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div>
-        <h1 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Chart of Accounts & Categories</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-          Explore the 50+ pre-seeded CORE BRIGHT financial categories and subcategories
-        </p>
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1.25rem',
+          padding: '1.35rem 1.65rem',
+          background: 'var(--bg-card)',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <h1 style={{ fontSize: '1.65rem' }}>Chart of Accounts Directory</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Explore the 50+ pre-seeded CORE BRIGHT financial categories and subcategories
+          </p>
+        </div>
       </div>
 
       {/* Filter Chips & Search Bar */}
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', minWidth: '280px' }}>
-          <Search size={15} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
+        <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} />
           <input
             type="text"
             className="input"
-            style={{ paddingLeft: '32px' }}
+            style={{ paddingLeft: '36px' }}
             placeholder="Search categories or subcategories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -78,7 +91,9 @@ export const CategoriesPage = () => {
                 <Folder size={18} style={{ color: 'var(--primary)' }} />
                 <h3 style={{ fontSize: '1rem' }}>{cat.name}</h3>
               </div>
-              <span className="badge badge-neutral">{cat.groupLabel || cat.group}</span>
+              <span className={`section-pill section-pill-${cat.group || 'O'}`}>
+                {cat.groupLabel || cat.group}
+              </span>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.25rem' }}>

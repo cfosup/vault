@@ -13,6 +13,7 @@ type User {
   name: String!
   email: String!
   role: String!
+  isEmailVerified: Boolean!
   lastLogin: String
   createdAt: String!
 }
@@ -21,6 +22,7 @@ type AuthPayload {
   token: String!
   user: User!
   org: Organization!
+  message: String
 }
 
 input RegisterInput {

@@ -13,10 +13,12 @@ import {
   Building,
   DollarSign,
   ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
 import { GET_INCOMES, GET_COMPANIES } from '../graphql/queries';
 import { CREATE_INCOMES, DELETE_INCOME } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const IncomePage = () => {
   const { activeCompanyId, token } = useAuthStore();
@@ -31,6 +33,10 @@ export const IncomePage = () => {
   const [quickSource, setQuickSource] = useState('');
   const [quickAmount, setQuickAmount] = useState('');
   const [quickNotes, setQuickNotes] = useState('');
+
+  // Delete Confirmation Modal State
+  const [incomeToDelete, setIncomeToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Batch rows state
   const [rows, setRows] = useState([
@@ -171,13 +177,17 @@ export const IncomePage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this income record?')) return;
+  const confirmDeleteIncome = async () => {
+    if (!incomeToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteIncome({ variables: { id } });
+      await deleteIncome({ variables: { id: incomeToDelete } });
       refetch();
+      setIncomeToDelete(null);
     } catch (err) {
       alert('Error deleting: ' + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -189,7 +199,7 @@ export const IncomePage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Header Card */}
       <div
         className="card"
@@ -199,30 +209,29 @@ export const IncomePage = () => {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          padding: '1.5rem 1.75rem',
-          background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%)',
+          padding: '1.35rem 1.65rem',
+          background: 'var(--bg-card)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Revenue & Inflow Ledger</h1>
-            <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <h1 style={{ fontSize: '1.65rem' }}>Revenue & Inflow Ledger</h1>
+            <span className="badge badge-success">
               {totalCount} Total Receipts
             </span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Record client subscriptions, retainer contracts, operational revenues, and multi-entity receipts
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>
             <Download size={14} /> Export CSV
           </button>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => setShowForm(!showForm)}
-            style={{ padding: '0.45rem 1rem' }}
           >
             {showForm ? <X size={15} /> : <Plus size={15} />}
             {showForm ? 'Close Entry Form' : '+ Record Revenue'}
@@ -274,7 +283,7 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Average Revenue Ticket
+              Average Ticket Size
             </span>
             <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }}>
               ₹{avgInflow.toLocaleString('en-IN')}
@@ -288,9 +297,8 @@ export const IncomePage = () => {
               width: '42px',
               height: '42px',
               borderRadius: 'var(--radius)',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-muted)',
+              background: 'var(--info-bg)',
+              color: 'var(--info)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -300,7 +308,7 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Entity Filter
+              Active Entity Filter
             </span>
             <span style={{ fontSize: '1.1rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {activeCompany ? activeCompany.name : 'All Consolidated'}
@@ -309,14 +317,15 @@ export const IncomePage = () => {
         </div>
       </div>
 
-      {/* Dual-Mode Income Entry Composer */}
+      {/* Entry Form */}
       {showForm && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1.5px solid var(--success)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1.5px solid var(--primary)' }}>
+          {/* Form Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-color)' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Record Cash Receipt / Revenue</h3>
+              <h3 style={{ fontSize: '1.15rem' }}>Record Corporate Revenue</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Allocate customer payments and capital injections to the legal operating division.
+                Track received client disbursements, investor capital, or miscellaneous receivables
               </p>
             </div>
 
@@ -334,7 +343,7 @@ export const IncomePage = () => {
                   fontSize: '0.82rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: entryMode === 'quick' ? 'var(--success)' : 'transparent',
+                  background: entryMode === 'quick' ? 'var(--primary)' : 'transparent',
                   color: entryMode === 'quick' ? '#fff' : 'var(--text-muted)',
                   transition: 'all 0.15s ease',
                 }}
@@ -354,7 +363,7 @@ export const IncomePage = () => {
                   fontSize: '0.82rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: entryMode === 'batch' ? 'var(--success)' : 'transparent',
+                  background: entryMode === 'batch' ? 'var(--primary)' : 'transparent',
                   color: entryMode === 'batch' ? '#fff' : 'var(--text-muted)',
                   transition: 'all 0.15s ease',
                 }}
@@ -364,7 +373,7 @@ export const IncomePage = () => {
             </div>
           </div>
 
-          {/* Quick Mode */}
+          {/* Quick Single Entry */}
           {entryMode === 'quick' && (
             <form onSubmit={(e) => handleQuickSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div className="grid-3">
@@ -380,7 +389,7 @@ export const IncomePage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Legal Entity (Company) *</label>
+                  <label className="form-label">Receiving Legal Entity</label>
                   <select
                     className="select"
                     value={quickCompanyId}
@@ -414,11 +423,11 @@ export const IncomePage = () => {
 
               <div className="grid-2">
                 <div className="form-group">
-                  <label className="form-label">Income Source / Client *</label>
+                  <label className="form-label">Revenue Source / Client Name *</label>
                   <input
                     type="text"
                     className="input"
-                    placeholder="e.g. Enterprise Client SaaS Retainer, Stripe Payout"
+                    placeholder="e.g. Acme Corp Retainer, Seed Round, Consulting Fee"
                     value={quickSource}
                     onChange={(e) => setQuickSource(e.target.value)}
                     required
@@ -426,11 +435,11 @@ export const IncomePage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Notes / Reference No.</label>
+                  <label className="form-label">Invoice Details / Reference Notes</label>
                   <input
                     type="text"
                     className="input"
-                    placeholder="e.g. Invoice #INV-2026-081"
+                    placeholder="e.g. Milestone 2 deliverable payment"
                     value={quickNotes}
                     onChange={(e) => setQuickNotes(e.target.value)}
                   />
@@ -446,14 +455,14 @@ export const IncomePage = () => {
                 >
                   Save & Add Another
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving} style={{ background: 'var(--success)' }}>
-                  <Check size={16} /> {saving ? 'Recording...' : 'Record Inflow'}
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <Check size={16} /> {saving ? 'Recording...' : 'Record Revenue'}
                 </button>
               </div>
             </form>
           )}
 
-          {/* Batch Mode */}
+          {/* Batch Grid Entry */}
           {entryMode === 'batch' && (
             <form onSubmit={handleSubmitBatch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -465,19 +474,20 @@ export const IncomePage = () => {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
                 {rows.map((row, idx) => (
                   <div
                     key={idx}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '130px 180px 1fr 140px 1fr 40px',
-                      gap: '0.65rem',
+                      gridTemplateColumns: '140px 180px 220px 140px 1fr 40px',
+                      gap: '0.6rem',
                       alignItems: 'center',
                       background: 'var(--bg-surface)',
                       padding: '0.65rem 0.85rem',
                       borderRadius: 'var(--radius)',
                       border: '1px solid var(--border-color)',
+                      minWidth: '820px',
                     }}
                   >
                     <input
@@ -494,10 +504,10 @@ export const IncomePage = () => {
                       onChange={(e) => handleRowChange(idx, 'companyId', e.target.value)}
                       required
                     >
-                      <option value="">Select Company</option>
+                      <option value="">Company</option>
                       {companies.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                          {c.name}
                         </option>
                       ))}
                     </select>
@@ -505,7 +515,7 @@ export const IncomePage = () => {
                     <input
                       type="text"
                       className="input"
-                      placeholder="Income Source / Client"
+                      placeholder="Source / Client"
                       value={row.source}
                       onChange={(e) => handleRowChange(idx, 'source', e.target.value)}
                       required
@@ -525,17 +535,17 @@ export const IncomePage = () => {
                     <input
                       type="text"
                       className="input"
-                      placeholder="Notes (Optional)"
+                      placeholder="Notes (optional)"
                       value={row.notes}
                       onChange={(e) => handleRowChange(idx, 'notes', e.target.value)}
                     />
 
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm"
+                      className="btn btn-secondary btn-icon"
                       onClick={() => handleRemoveRow(idx)}
                       disabled={rows.length === 1}
-                      style={{ padding: '0.4rem', color: 'var(--danger)' }}
+                      style={{ color: 'var(--danger)' }}
                       title="Delete row"
                     >
                       <Trash2 size={14} />
@@ -548,8 +558,8 @@ export const IncomePage = () => {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddRow}>
                   <Plus size={14} /> Add Row
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving} style={{ background: 'var(--success)' }}>
-                  <Check size={16} /> {saving ? 'Saving...' : `Save ${rows.length} Income(s)`}
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <Check size={16} /> {saving ? 'Saving...' : `Save ${rows.length} Revenue(s)`}
                 </button>
               </div>
             </form>
@@ -557,15 +567,15 @@ export const IncomePage = () => {
         </div>
       )}
 
-      {/* Filters Bar */}
+      {/* Search Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ position: 'relative', width: '100%', maxWidth: '360px' }}>
-          <Search size={15} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} />
           <input
             type="text"
             className="input"
             style={{ paddingLeft: '36px' }}
-            placeholder="Search income source, client, notes..."
+            placeholder="Search source or notes..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -573,20 +583,21 @@ export const IncomePage = () => {
             }}
           />
         </div>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+
+        <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
           Showing <strong>{incomes.length}</strong> of <strong>{totalCount}</strong> receipts
         </span>
       </div>
 
-      {/* Incomes Table */}
+      {/* Revenue Table */}
       <div className="table-container">
         <table className="table">
           <thead>
             <tr>
               <th>Date</th>
               <th>Company</th>
-              <th>Income Source</th>
-              <th>Reference / Notes</th>
+              <th>Source / Client</th>
+              <th>Invoice Notes</th>
               <th>Amount</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
@@ -595,9 +606,11 @@ export const IncomePage = () => {
             {incomes.length === 0 ? (
               <tr>
                 <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
-                  <DollarSign size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
-                  <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>No income records found</p>
-                  <p style={{ fontSize: '0.85rem' }}>Click "+ Record Revenue" above to log your first receipt</p>
+                  <div className="empty-state">
+                    <div className="empty-icon"><TrendingUp size={24} /></div>
+                    <div className="empty-title">No revenue records found</div>
+                    <div className="empty-desc">Click "+ Record Revenue" above to record your first inflow</div>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -613,14 +626,18 @@ export const IncomePage = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{comp?.name || '—'}</span>
                         {comp?.isCoreBranch && (
-                          <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.08rem 0.35rem' }}>
+                          <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem' }}>
                             Core
                           </span>
                         )}
                       </div>
                     </td>
-                    <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{inc.source}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.825rem' }}>{inc.notes || '—'}</td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{inc.source}</span>
+                    </td>
+                    <td style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                      {inc.notes || '—'}
+                    </td>
                     <td>
                       <span className="mono" style={{ fontWeight: 800, color: 'var(--success)', fontSize: '0.95rem' }}>
                         +₹{Number(inc.amount).toLocaleString('en-IN')}
@@ -628,10 +645,10 @@ export const IncomePage = () => {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleDelete(inc.id)}
+                        className="btn btn-secondary btn-icon"
+                        onClick={() => setIncomeToDelete(inc.id)}
                         title="Delete Income Record"
-                        style={{ padding: '0.32rem 0.5rem', color: 'var(--danger)' }}
+                        style={{ color: 'var(--danger)' }}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -666,6 +683,19 @@ export const IncomePage = () => {
           </button>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!incomeToDelete}
+        title="Delete Revenue Record"
+        message="Are you sure you want to permanently delete this revenue receipt from the ledger? This action cannot be undone."
+        confirmText="Delete Revenue"
+        cancelText="Keep"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={confirmDeleteIncome}
+        onCancel={() => setIncomeToDelete(null)}
+      />
     </div>
   );
 };

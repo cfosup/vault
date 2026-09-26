@@ -1,37 +1,52 @@
 import { create } from 'zustand';
 
-const storedToken = localStorage.getItem('expenseflow_token');
-const storedUser = localStorage.getItem('expenseflow_user');
-const storedOrg = localStorage.getItem('expenseflow_org');
-const storedCompanyId = localStorage.getItem('expenseflow_active_company_id');
+const storedToken = localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token');
+const storedUser = localStorage.getItem('vault_user') || localStorage.getItem('expenseflow_user');
+const storedOrg = localStorage.getItem('vault_org') || localStorage.getItem('expenseflow_org');
+const storedCompanyId = localStorage.getItem('vault_active_company_id') || localStorage.getItem('expenseflow_active_company_id');
+const initialTheme = localStorage.getItem('vault_theme') || localStorage.getItem('expenseflow_theme') || 'dark';
+
+// Synchronize root theme attributes immediately
+if (typeof document !== 'undefined') {
+  document.documentElement.setAttribute('data-theme', initialTheme);
+  document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+}
 
 export const useAuthStore = create((set) => ({
   token: storedToken || null,
   user: storedUser ? JSON.parse(storedUser) : null,
   org: storedOrg ? JSON.parse(storedOrg) : null,
   activeCompanyId: storedCompanyId || null,
-  theme: localStorage.getItem('expenseflow_theme') || 'dark',
+  theme: initialTheme,
 
   login: (token, user, org) => {
-    localStorage.setItem('expenseflow_token', token);
-    localStorage.setItem('expenseflow_user', JSON.stringify(user));
-    localStorage.setItem('expenseflow_org', JSON.stringify(org));
+    localStorage.setItem('vault_token', token);
+    localStorage.setItem('vault_user', JSON.stringify(user));
+    localStorage.setItem('vault_org', JSON.stringify(org));
     set({ token, user, org });
   },
 
+  updateUser: (user) => {
+    localStorage.setItem('vault_user', JSON.stringify(user));
+    set((state) => ({ user: { ...state.user, ...user } }));
+  },
+
   logout: () => {
+    localStorage.removeItem('vault_token');
+    localStorage.removeItem('vault_user');
+    localStorage.removeItem('vault_org');
+    localStorage.removeItem('vault_active_company_id');
     localStorage.removeItem('expenseflow_token');
     localStorage.removeItem('expenseflow_user');
     localStorage.removeItem('expenseflow_org');
-    localStorage.removeItem('expenseflow_active_company_id');
     set({ token: null, user: null, org: null, activeCompanyId: null });
   },
 
   setActiveCompanyId: (companyId) => {
     if (companyId) {
-      localStorage.setItem('expenseflow_active_company_id', companyId);
+      localStorage.setItem('vault_active_company_id', companyId);
     } else {
-      localStorage.removeItem('expenseflow_active_company_id');
+      localStorage.removeItem('vault_active_company_id');
     }
     set({ activeCompanyId: companyId });
   },
@@ -39,8 +54,9 @@ export const useAuthStore = create((set) => ({
   toggleTheme: () => {
     set((state) => {
       const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('expenseflow_theme', nextTheme);
+      localStorage.setItem('vault_theme', nextTheme);
       document.documentElement.setAttribute('data-theme', nextTheme);
+      document.documentElement.classList.toggle('dark', nextTheme === 'dark');
       return { theme: nextTheme };
     });
   },

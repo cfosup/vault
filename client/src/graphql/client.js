@@ -6,7 +6,7 @@ const httpLink = createHttpLink({
 });
 
 const authLink = setContext((_, { headers }) => {
-  const token = localStorage.getItem('expenseflow_token');
+  const token = localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token');
   return {
     headers: {
       ...headers,

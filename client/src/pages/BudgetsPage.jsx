@@ -19,6 +19,7 @@ import { GET_ALL_BUDGET_USAGES, GET_COMPANIES, GET_CATEGORIES } from '../graphql
 import { CREATE_BUDGET_BUCKET, DELETE_BUDGET_BUCKET } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { CategorySelect } from '../components/common/CategorySelect';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const BudgetsPage = () => {
   const { activeCompanyId } = useAuthStore();
@@ -34,6 +35,10 @@ export const BudgetsPage = () => {
   const [subcatAmounts, setSubcatAmounts] = useState({});
   const [showSubcatSection, setShowSubcatSection] = useState(false);
   const [expandedCards, setExpandedCards] = useState({});
+
+  // Delete modal state
+  const [bucketToDelete, setBucketToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: compData } = useQuery(GET_COMPANIES);
   const { data: catData } = useQuery(GET_CATEGORIES, {
@@ -114,13 +119,17 @@ export const BudgetsPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this budget bucket?')) return;
+  const confirmDelete = async () => {
+    if (!bucketToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteBucket({ variables: { id } });
+      await deleteBucket({ variables: { id: bucketToDelete } });
       refetch();
+      setBucketToDelete(null);
     } catch (err) {
       alert('Error deleting budget: ' + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -135,7 +144,7 @@ export const BudgetsPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Header Card */}
       <div
         className="card"
@@ -145,23 +154,23 @@ export const BudgetsPage = () => {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          padding: '1.5rem 1.75rem',
-          background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%)',
+          padding: '1.35rem 1.65rem',
+          background: 'var(--bg-card)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Budget Buckets & Spending Caps</h1>
-            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <h1 style={{ fontSize: '1.65rem' }}>Budget Buckets & Spending Caps</h1>
+            <span className="badge badge-primary">
               {usages.length} Active Buckets
             </span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Enforce spending discipline with category-level caps and optional sub-category limit allocations
           </p>
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)} style={{ padding: '0.45rem 1rem' }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
           <Plus size={15} /> + Create Budget Bucket
         </button>
       </div>
@@ -172,8 +181,8 @@ export const BudgetsPage = () => {
           <div className="card" style={{ padding: '1.15rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: 'var(--radius)',
                 background: 'var(--primary-light)',
                 color: 'var(--primary)',
@@ -197,8 +206,8 @@ export const BudgetsPage = () => {
           <div className="card" style={{ padding: '1.15rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: 'var(--radius)',
                 background: overallPercent >= 80 ? 'var(--danger-bg)' : 'var(--success-bg)',
                 color: overallPercent >= 80 ? 'var(--danger)' : 'var(--success)',
@@ -222,8 +231,8 @@ export const BudgetsPage = () => {
           <div className="card" style={{ padding: '1.15rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div
               style={{
-                width: '44px',
-                height: '44px',
+                width: '42px',
+                height: '42px',
                 borderRadius: 'var(--radius)',
                 background: alertsCount > 0 ? 'var(--warning-bg)' : 'var(--success-bg)',
                 color: alertsCount > 0 ? 'var(--warning)' : 'var(--success)',
@@ -238,7 +247,7 @@ export const BudgetsPage = () => {
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
                 Active Overrun Warnings
               </span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 700, color: alertsCount > 0 ? 'var(--warning)' : 'var(--success)' }}>
+              <span style={{ fontSize: '1.2rem', fontWeight: 700, color: alertsCount > 0 ? 'var(--warning)' : 'var(--success)' }}>
                 {alertsCount > 0 ? `${alertsCount} Buckets in Alert` : 'All Within Limits'}
               </span>
             </div>
@@ -248,15 +257,17 @@ export const BudgetsPage = () => {
 
       {/* Grid of Budget Cards */}
       {usages.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '4rem 1.5rem', color: 'var(--text-muted)' }}>
-          <PieChart size={48} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-main)' }}>
+        <div className="card empty-state" style={{ padding: '4rem 1.5rem' }}>
+          <div className="empty-icon" style={{ width: '56px', height: '56px' }}>
+            <PieChart size={28} />
+          </div>
+          <div className="empty-title" style={{ fontSize: '1.15rem' }}>
             No Budget Buckets Configured
-          </h3>
-          <p style={{ fontSize: '0.875rem', maxWidth: '480px', margin: '0 auto 1.5rem', lineHeight: 1.5 }}>
+          </div>
+          <div className="empty-desc" style={{ maxWidth: '440px' }}>
             Budget buckets prevent cost overruns by setting expenditure ceilings on operational departments like Infrastructure, Marketing, or Equipment.
-          </p>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)} style={{ marginTop: '0.5rem' }}>
             <Plus size={14} /> Create Your First Budget
           </button>
         </div>
@@ -275,14 +286,14 @@ export const BudgetsPage = () => {
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '1.15rem',
+                  gap: '1.1rem',
                   borderTop: `4px solid ${barColor}`,
                 }}
               >
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.2rem' }}>{bucket.name}</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.2rem' }}>{bucket.name}</h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                       <span>{bucket.categoryName}</span>
                       <span>•</span>
@@ -291,10 +302,10 @@ export const BudgetsPage = () => {
                   </div>
 
                   <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleDelete(bucket.id)}
+                    className="btn btn-secondary btn-icon"
+                    onClick={() => setBucketToDelete(bucket.id)}
                     title="Delete Budget Bucket"
-                    style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }}
+                    style={{ color: 'var(--danger)' }}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -302,14 +313,14 @@ export const BudgetsPage = () => {
 
                 {/* Main Progress Bar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.825rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Expenditure</span>
                     <span className="mono" style={{ fontWeight: 800, color: barColor }}>
                       {percentUsed}%
                     </span>
                   </div>
 
-                  <div style={{ height: '8px', background: 'var(--bg-surface)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '7px', background: 'var(--bg-surface)', borderRadius: '4px', overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${clampedPercent}%`,
@@ -335,20 +346,20 @@ export const BudgetsPage = () => {
                   }}
                 >
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent</span>
-                    <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--danger)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent</span>
+                    <div className="mono" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--danger)' }}>
                       ₹{usedAmount.toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Limit</span>
-                    <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 800 }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Limit</span>
+                    <div className="mono" style={{ fontSize: '0.9rem', fontWeight: 800 }}>
                       ₹{bucket.limitAmount.toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Left</span>
-                    <div className="mono" style={{ fontSize: '0.95rem', fontWeight: 800, color: remainingAmount > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Left</span>
+                    <div className="mono" style={{ fontSize: '0.9rem', fontWeight: 800, color: remainingAmount > 0 ? 'var(--success)' : 'var(--danger)' }}>
                       ₹{remainingAmount.toLocaleString('en-IN')}
                     </div>
                   </div>
@@ -393,7 +404,7 @@ export const BudgetsPage = () => {
                     </button>
 
                     {isExpanded && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.6rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.65rem' }}>
                         {subBudgets.map((sub, sIdx) => {
                           const subColor = getProgressColor(sub.percentUsed, sub.isOverBudget);
                           const subClamped = Math.min(100, sub.percentUsed);
@@ -403,27 +414,23 @@ export const BudgetsPage = () => {
                               key={sIdx}
                               style={{
                                 background: 'var(--bg-surface)',
-                                padding: '0.6rem 0.75rem',
+                                padding: '0.65rem 0.85rem',
                                 borderRadius: 'var(--radius-sm)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.35rem',
                               }}
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
                                 <span style={{ fontWeight: 600 }}>{sub.subcategory}</span>
-                                <span className="mono" style={{ color: subColor, fontWeight: 700 }}>
-                                  ₹{sub.usedAmount.toLocaleString('en-IN')} / ₹{sub.limitAmount.toLocaleString('en-IN')}
+                                <span className="mono" style={{ fontWeight: 700, color: subColor }}>
+                                  ₹{sub.usedAmount.toLocaleString('en-IN')} / ₹{sub.limitAmount.toLocaleString('en-IN')} ({sub.percentUsed}%)
                                 </span>
                               </div>
+
                               <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}>
                                 <div style={{ width: `${subClamped}%`, height: '100%', background: subColor }} />
                               </div>
-                              {sub.isOverBudget && (
-                                <span style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 600 }}>
-                                  Over sub-category budget limit!
-                                </span>
-                              )}
                             </div>
                           );
                         })}
@@ -437,38 +444,58 @@ export const BudgetsPage = () => {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!bucketToDelete}
+        title="Delete Budget Bucket"
+        message="Are you sure you want to delete this budget bucket? Spending limits and threshold alerts for this category will be removed."
+        confirmText="Delete Bucket"
+        cancelText="Cancel"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setBucketToDelete(null)}
+      />
+
       {/* Create Budget Modal */}
       {showModal && (
         <div className="modal-backdrop" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Create Budget Bucket</h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Define spending ceiling and optional sub-category limits
-                </p>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Target size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Create Budget Bucket</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Set spending thresholds to prevent budget overruns
+                  </span>
+                </div>
               </div>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowModal(false)} style={{ padding: '0.35rem' }}>
-                <X size={15} />
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={() => setShowModal(false)}
+              >
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Budget Name</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. FY26 Cloud & DevOps Infrastructure"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="grid-2">
+            <form onSubmit={handleCreate}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Legal Entity (Company)</label>
+                  <label className="form-label">Legal Entity</label>
                   <select
                     className="select"
                     value={companyId}
@@ -478,116 +505,138 @@ export const BudgetsPage = () => {
                     <option value="">Select Company</option>
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.isCoreBranch ? '(Core Branch)' : ''}
+                        {c.name} {c.isCoreBranch ? '★ Core' : ''}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Parent Category</label>
+                  <label className="form-label">Budget Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Q1 Marketing & Acquisition"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Target Category</label>
                   <CategorySelect
                     categories={categories}
                     value={categoryId}
-                    onChange={(e) => {
-                      setCategoryId(e.target.value);
-                      setSubcatAmounts({});
-                    }}
-                    placeholder="Select Category"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid-3">
-                <div className="form-group">
-                  <label className="form-label">Limit (₹ INR)</label>
-                  <input
-                    type="number"
-                    className="input mono"
-                    placeholder="50000"
-                    value={limitAmount}
-                    onChange={(e) => setLimitAmount(e.target.value)}
-                    min="1"
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    placeholder="Select Category to Limit"
                     required
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Period</label>
-                  <select className="select" value={period} onChange={(e) => setPeriod(e.target.value)}>
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Limit Amount (₹)</label>
+                    <input
+                      type="number"
+                      className="input mono"
+                      placeholder="100000"
+                      value={limitAmount}
+                      onChange={(e) => setLimitAmount(e.target.value)}
+                      min="1"
+                      step="any"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Period</label>
+                    <select
+                      className="select"
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value)}
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Alert Trigger (%)</label>
+                  <label className="form-label">Alert Trigger Threshold (% of limit)</label>
                   <input
                     type="number"
                     className="input mono"
+                    placeholder="80"
                     value={alertThreshold}
                     onChange={(e) => setAlertThreshold(e.target.value)}
                     min="1"
                     max="100"
-                    required
                   />
                 </div>
+
+                {/* Subcategory Allocation Toggle */}
+                {categoryId && (
+                  <div style={{ marginTop: '0.25rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setShowSubcatSection(!showSubcatSection)}
+                    >
+                      <Layers size={14} />
+                      {showSubcatSection ? 'Hide Subcategory Caps' : 'Allocate Subcategory Caps'}
+                    </button>
+
+                    {showSubcatSection && (
+                      <div
+                        style={{
+                          marginTop: '0.75rem',
+                          padding: '0.85rem',
+                          background: 'var(--bg-surface)',
+                          borderRadius: 'var(--radius)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          Set specific expenditure limits per subcategory (optional):
+                        </span>
+                        {(categories.find((c) => c.id === categoryId)?.subcategories || []).map((sub, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{sub.name}</span>
+                            <input
+                              type="number"
+                              className="input mono"
+                              style={{ width: '130px', padding: '0.35rem 0.65rem' }}
+                              placeholder="₹ Limit"
+                              value={subcatAmounts[sub.name] || ''}
+                              onChange={(e) =>
+                                setSubcatAmounts({
+                                  ...subcatAmounts,
+                                  [sub.name]: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Sub-category Budgets Configurator */}
-              {categoryId && (
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowSubcatSection(!showSubcatSection)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--primary)',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>{showSubcatSection ? 'Hide' : 'Configure'} Optional Sub-category Limits</span>
-                  </button>
-
-                  {showSubcatSection && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.75rem' }}>
-                      {(categories.find((c) => c.id === categoryId)?.subcategories || []).map((sub, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                          <span style={{ fontSize: '0.825rem', color: 'var(--text-main)', flex: 1 }}>{sub.name}</span>
-                          <input
-                            type="number"
-                            className="input mono"
-                            style={{ width: '130px', padding: '0.4rem 0.6rem' }}
-                            placeholder="₹ Limit"
-                            value={subcatAmounts[sub.name] || ''}
-                            onChange={(e) =>
-                              setSubcatAmounts({ ...subcatAmounts, [sub.name]: e.target.value })
-                            }
-                            min="0"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowModal(false)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? 'Creating...' : 'Create Bucket'}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
+                  {creating ? 'Creating...' : 'Create Budget'}
                 </button>
               </div>
             </form>

@@ -4,12 +4,14 @@ export const REGISTER = gql`
   mutation Register($input: RegisterInput!) {
     register(input: $input) {
       token
+      message
       user {
         id
         orgId
         name
         email
         role
+        isEmailVerified
       }
       org {
         id
@@ -31,6 +33,7 @@ export const LOGIN = gql`
         name
         email
         role
+        isEmailVerified
       }
       org {
         id

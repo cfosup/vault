@@ -9,7 +9,7 @@ import {
   X,
   FolderTree,
   Tags,
-  Sparkles,
+  Database,
   ChevronRight,
   ShieldCheck,
   RefreshCw,
@@ -32,6 +32,7 @@ import {
   DELETE_SUBCATEGORY,
   RESET_COMPANY_CATEGORIES_TO_CORE,
 } from '../graphql/mutations';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const CompaniesPage = () => {
   // Company CRUD state
@@ -55,6 +56,16 @@ export const CompaniesPage = () => {
 
   const [activeSubcatInputCatId, setActiveSubcatInputCatId] = useState(null);
   const [newSubcatName, setNewSubcatName] = useState('');
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger',
+    loading: false,
+  });
 
   // Queries & Mutations
   const { data: compData, loading, refetch: refetchCompanies } = useQuery(GET_COMPANIES);
@@ -153,17 +164,25 @@ export const CompaniesPage = () => {
     }
   };
 
-  const handleDeleteCompany = async (id) => {
-    if (!window.confirm('Delete this company? Note: Expenses and budgets tied to this company will be affected.')) {
-      return;
-    }
-    try {
-      await deleteCompany({ variables: { id } });
-      if (structureCompany?.id === id) setStructureCompany(null);
-      refetchCompanies();
-    } catch (err) {
-      alert('Error deleting company: ' + err.message);
-    }
+  const promptDeleteCompany = (c) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Company Entity',
+      message: `Are you sure you want to permanently delete "${c.name}"? Historical disbursements, incomes, and budgets linked to this entity will be impacted.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteCompany({ variables: { id: c.id } });
+          if (structureCompany?.id === c.id) setStructureCompany(null);
+          refetchCompanies();
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          alert('Error deleting company: ' + err.message);
+          setConfirmDialog((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
   // Hierarchy Manager Handlers
@@ -172,23 +191,25 @@ export const CompaniesPage = () => {
     setActiveSubcatInputCatId(null);
   };
 
-  const handleApplyCoreBranchTemplate = async () => {
+  const promptApplyCoreBranchTemplate = () => {
     if (!structureCompany) return;
-    if (
-      !window.confirm(
-        `Apply the standard 10-section CORE BRIGHT chart of accounts (51 categories) to "${structureCompany.name}"? This will populate standard corporate accounts.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await resetToCore({ variables: { companyId: structureCompany.id } });
-      refetchCompanyCategories();
-      alert('Successfully applied CORE BRIGHT chart of accounts to ' + structureCompany.name);
-    } catch (err) {
-      alert('Error applying template: ' + err.message);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Apply Standard CORE BRIGHT Template',
+      message: `Apply the complete 10-section CORE BRIGHT chart of accounts (51 categories) to "${structureCompany.name}"? This will populate standard corporate account categories.`,
+      variant: 'primary',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, loading: true }));
+        try {
+          await resetToCore({ variables: { companyId: structureCompany.id } });
+          refetchCompanyCategories();
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          alert('Error applying template: ' + err.message);
+          setConfirmDialog((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
   const handleAddSectionSubmit = (e) => {
@@ -242,44 +263,58 @@ export const CompaniesPage = () => {
     }
   };
 
-  const handleDeleteCat = async (categoryId) => {
-    if (!window.confirm('Delete this category and its subcategories from this company?')) return;
-    try {
-      await deleteCategory({ variables: { id: categoryId } });
-      refetchCompanyCategories();
-    } catch (err) {
-      alert('Error deleting category: ' + err.message);
-    }
+  const promptDeleteCat = (categoryId, categoryName) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Category',
+      message: `Delete "${categoryName}" and its subcategories from ${structureCompany?.name}?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteCategory({ variables: { id: categoryId } });
+          refetchCompanyCategories();
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          alert('Error deleting category: ' + err.message);
+          setConfirmDialog((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
-  const handleDeleteSection = async (group) => {
-    if (
-      !window.confirm(
-        `Delete the entire Section "${group}" and all categories within it for ${structureCompany.name}?`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await deleteCategorySection({
-        variables: {
-          companyId: structureCompany.id,
-          group,
-        },
-      });
-      refetchCompanyCategories();
-    } catch (err) {
-      alert('Error deleting section: ' + err.message);
-    }
+  const promptDeleteSection = (groupKey, groupLabel) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Entire Section',
+      message: `Delete all categories in section "${groupLabel}" for ${structureCompany?.name}?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteCategorySection({
+            variables: {
+              companyId: structureCompany.id,
+              group: groupKey,
+            },
+          });
+          refetchCompanyCategories();
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          alert('Error deleting section: ' + err.message);
+          setConfirmDialog((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
-  const handleAddSubcategorySubmit = async (categoryId) => {
+  const handleAddSubcatSubmit = async (catId) => {
     if (!newSubcatName.trim()) return;
+
     try {
       await addSubcategory({
         variables: {
-          categoryId,
+          categoryId: catId,
           subcategoryName: newSubcatName.trim(),
         },
       });
@@ -291,32 +326,33 @@ export const CompaniesPage = () => {
     }
   };
 
-  const handleDeleteSubcat = async (categoryId, subcategoryName) => {
-    try {
-      await deleteSubcategory({
-        variables: {
-          categoryId,
-          subcategoryName,
-        },
-      });
-      refetchCompanyCategories();
-    } catch (err) {
-      alert('Error deleting subcategory: ' + err.message);
-    }
-  };
-
-  const getCompanyInitials = (cName) => {
-    if (!cName) return 'CO';
-    return cName
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
+  const promptDeleteSubcat = (categoryId, subcatName) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Subcategory',
+      message: `Remove subcategory "${subcatName}"?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteSubcategory({
+            variables: {
+              categoryId,
+              subcategoryName: subcatName,
+            },
+          });
+          refetchCompanyCategories();
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          alert('Error removing subcategory: ' + err.message);
+          setConfirmDialog((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Header Card */}
       <div
         className="card"
@@ -326,442 +362,507 @@ export const CompaniesPage = () => {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          padding: '1.5rem 1.75rem',
-          background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%)',
+          padding: '1.35rem 1.65rem',
+          background: 'var(--bg-card)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Legal Entities & Chart of Accounts</h1>
-            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
-              {companies.length} Registered Divisions
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <h1 style={{ fontSize: '1.65rem' }}>Corporate Entities & Chart of Accounts</h1>
+            <span className="badge badge-primary">
+              {companies.length} Registered Entities
             </span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Manage subsidiaries, provision Core Branch accounting frameworks, and define hierarchical category trees
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Manage subsidiary entities, define individual charts of accounts, and structure CORE BRIGHT operational sections
           </p>
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={handleOpenCreate} style={{ padding: '0.45rem 1rem' }}>
-          <Plus size={15} /> Add New Entity
+        <button className="btn btn-primary btn-sm" onClick={handleOpenCreate}>
+          <Plus size={15} /> + Register Company
         </button>
       </div>
 
-      {/* Main Grid: Companies List */}
+      {/* Grid of Companies */}
       <div className="grid-3">
-        {companies.map((company) => (
-          <div
-            key={company.id}
-            className="card halo-card"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.15rem',
-              borderTop: company.isCoreBranch ? '3px solid var(--primary)' : '1px solid var(--border-color)',
-            }}
-          >
-            {/* Card Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: 'var(--radius)',
-                    background: company.isCoreBranch ? 'var(--primary-gradient)' : 'var(--bg-surface)',
-                    color: company.isCoreBranch ? '#fff' : 'var(--text-main)',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.9rem',
-                    fontWeight: 800,
-                    fontFamily: 'Plus Jakarta Sans',
-                    boxShadow: company.isCoreBranch ? 'var(--shadow-glow)' : 'none',
-                  }}
-                >
-                  {getCompanyInitials(company.name)}
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{company.name}</h3>
-                  <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.2rem' }}>
-                    <span className="badge badge-success" style={{ fontSize: '0.68rem' }}>
-                      Active Entity
-                    </span>
-                    {company.isCoreBranch && (
-                      <span
-                        className="badge badge-primary"
-                        style={{ fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                      >
-                        <ShieldCheck size={11} /> Core Branch
+        {companies.map((c) => {
+          const isSelected = structureCompany?.id === c.id;
+
+          return (
+            <div
+              key={c.id}
+              className="card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-color)',
+                boxShadow: isSelected ? 'var(--shadow-md)' : 'var(--shadow-xs)',
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: 'var(--radius)',
+                      background: c.isCoreBranch ? 'var(--primary)' : 'var(--bg-surface)',
+                      color: c.isCoreBranch ? '#fff' : 'var(--text-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      fontSize: '1rem',
+                      boxShadow: 'none',
+                    }}
+                  >
+                    <Building2 size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{c.name}</h3>
+                    {c.isCoreBranch ? (
+                      <span className="badge badge-success" style={{ fontSize: '0.68rem', marginTop: '0.2rem' }}>
+                        Core Operating Branch
+                      </span>
+                    ) : (
+                      <span className="badge badge-neutral" style={{ fontSize: '0.68rem', marginTop: '0.2rem' }}>
+                        Subsidiary / Branch
                       </span>
                     )}
                   </div>
                 </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    onClick={() => handleOpenEdit(c)}
+                    title="Edit Entity"
+                  >
+                    <Edit2 size={13} />
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    onClick={() => promptDeleteCompany(c)}
+                    title="Delete Entity"
+                    style={{ color: 'var(--danger)' }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.3rem' }}>
+              {/* Description */}
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', minHeight: '36px', lineHeight: 1.45 }}>
+                {c.description || 'No corporate profile description provided.'}
+              </p>
+
+              {/* Structure Button */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
                 <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleOpenEdit(company)}
-                  title="Edit Company Details"
-                  style={{ padding: '0.35rem 0.5rem' }}
+                  type="button"
+                  className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  style={{ width: '100%' }}
+                  onClick={() => handleOpenStructure(c)}
                 >
-                  <Edit2 size={13} />
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleDeleteCompany(company.id)}
-                  title="Delete Company"
-                  style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }}
-                >
-                  <Trash2 size={13} />
+                  <FolderTree size={14} />
+                  {isSelected ? 'Chart of Accounts Active' : 'Manage Chart of Accounts'}
                 </button>
               </div>
             </div>
+          );
+        })}
+      </div>
 
-            {/* Description */}
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', minHeight: '38px', lineHeight: 1.45 }}>
-              {company.description || 'No business division description specified.'}
-            </p>
+      {/* Structure Manager Section */}
+      {structureCompany && (
+        <div
+          className="card"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            border: '1.5px solid var(--primary)',
+            background: 'var(--bg-card)',
+          }}
+        >
+          {/* Structure Manager Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FolderTree size={20} style={{ color: 'var(--primary)' }} />
+                <h2 style={{ fontSize: '1.25rem' }}>
+                  Chart of Accounts: <span style={{ color: 'var(--primary)' }}>{structureCompany.name}</span>
+                </h2>
+              </div>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                Customized category hierarchy and CORE BRIGHT structure for this specific legal entity
+              </p>
+            </div>
 
-            {/* Action to Manage Category Hierarchy */}
-            <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-secondary btn-sm"
-                onClick={() => handleOpenStructure(company)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                  padding: '0.5rem',
-                }}
+                onClick={promptApplyCoreBranchTemplate}
+                disabled={resettingCore}
               >
-                <FolderTree size={15} style={{ color: 'var(--primary)' }} />
-                <span>Explore Chart of Accounts</span>
-                <ChevronRight size={13} />
+                <Database size={14} style={{ color: 'var(--primary)' }} />
+                {resettingCore ? 'Applying...' : 'Apply CORE BRIGHT Pre-Seed (51 Accounts)'}
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setShowAddSectionModal(true)}
+              >
+                <Plus size={14} /> + Add Section Letter
               </button>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Category Structure Hierarchy Drawer / Modal */}
-      {structureCompany && (
-        <div className="modal-backdrop" onClick={() => setStructureCompany(null)}>
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '920px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '1.85rem' }}
-          >
-            {/* Hierarchy Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{structureCompany.name}</h2>
-                  {structureCompany.isCoreBranch && (
-                    <span className="badge badge-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <ShieldCheck size={12} /> Core Branch Architecture
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  <span>Entity</span>
-                  <ChevronRight size={12} />
-                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>CORE BRIGHT Section</span>
-                  <ChevronRight size={12} />
-                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Category</span>
-                  <ChevronRight size={12} />
-                  <span>Sub-category</span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleApplyCoreBranchTemplate}
-                  disabled={resettingCore}
-                  title="Provision standard 51 CORE BRIGHT accounts"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <Sparkles size={13} style={{ color: 'var(--primary)' }} />
-                  <span>{resettingCore ? 'Applying...' : 'Apply Core Template'}</span>
-                </button>
-
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => setShowAddSectionModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                >
-                  <FolderPlus size={13} />
-                  <span>+ Add Section</span>
-                </button>
-
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setStructureCompany(null)}
-                  style={{ padding: '0.4rem' }}
-                >
-                  <X size={16} />
-                </button>
+          {/* Grouped Sections List */}
+          {groupedSections.length === 0 ? (
+            <div className="empty-state" style={{ padding: '3.5rem 1rem' }}>
+              <div className="empty-icon"><FolderTree size={24} /></div>
+              <div className="empty-title">No categories in chart of accounts</div>
+              <div className="empty-desc">
+                Click "Apply CORE BRIGHT Pre-Seed" to populate 51 corporate account categories or create custom sections manually.
               </div>
             </div>
-
-            {/* Hierarchy Tree Content */}
-            <div style={{ overflowY: 'auto', flex: 1, paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {catLoading ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Loading category structure...
-                </div>
-              ) : groupedSections.length === 0 ? (
-                <div className="card" style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <FolderTree size={44} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    No Category Hierarchy Provisioned
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', maxWidth: '440px', margin: '0 auto 1.25rem', lineHeight: 1.5 }}>
-                    This company has not initialized its chart of accounts yet. Apply the standard 10-section CORE BRIGHT template or add custom sections from scratch.
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
-                    <button className="btn btn-primary btn-sm" onClick={handleApplyCoreBranchTemplate}>
-                      <Sparkles size={14} /> Apply CORE BRIGHT Template
-                    </button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setShowAddSectionModal(true)}>
-                      <FolderPlus size={14} /> Add Custom Section
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                groupedSections.map((sec) => (
-                  <div
-                    key={sec.key}
-                    style={{
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--radius)',
-                      padding: '1.15rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.85rem',
-                    }}
-                  >
-                    {/* Section Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <span className={`section-pill section-pill-${sec.key}`} style={{ fontSize: '0.85rem', padding: '0.2rem 0.6rem' }}>
-                          {sec.key}
-                        </span>
-                        <div>
-                          <h4 style={{ fontSize: '1rem', fontWeight: 700 }}>{sec.label}</h4>
-                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            {sec.categories.length} Accounts in this section
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleOpenAddCategory(sec.key, sec.label)}
-                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                        >
-                          <Plus size={12} /> Add Category
-                        </button>
-
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleDeleteSection(sec.key)}
-                          title="Delete entire section"
-                          style={{ padding: '0.25rem 0.45rem', color: 'var(--danger)' }}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {groupedSections.map((sec) => (
+                <div
+                  key={sec.key}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius)',
+                    padding: '1.15rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.85rem',
+                  }}
+                >
+                  {/* Section Title Bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span className={`section-pill section-pill-${sec.key}`} style={{ fontSize: '0.85rem', padding: '0.25rem 0.65rem' }}>
+                        Section {sec.key}
+                      </span>
+                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{sec.label}</span>
+                      <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                        {sec.categories.length} Categories
+                      </span>
                     </div>
 
-                    {/* Categories under Section */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingLeft: '0.75rem' }}>
-                      {sec.categories.map((cat) => (
-                        <div
-                          key={cat.id}
-                          style={{
-                            background: 'var(--bg-card)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-sm)',
-                            padding: '0.75rem 0.95rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.5rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <CornerDownRight size={13} style={{ color: 'var(--primary)' }} />
-                              <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{cat.name}</span>
-                            </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleOpenAddCategory(sec.key, sec.label)}
+                        style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}
+                      >
+                        <Plus size={12} /> Add Category
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-icon"
+                        onClick={() => promptDeleteSection(sec.key, sec.label)}
+                        title="Delete Entire Section"
+                        style={{ color: 'var(--danger)' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {/* Categories Grid inside Section */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                      gap: '0.75rem',
+                      marginTop: '0.25rem',
+                    }}
+                  >
+                    {sec.categories.map((cat) => (
+                      <div
+                        key={cat.id}
+                        style={{
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '0.75rem 0.85rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{cat.name}</span>
+                          <button
+                            className="btn btn-ghost btn-icon"
+                            onClick={() => promptDeleteCat(cat.id, cat.name)}
+                            title="Delete Category"
+                            style={{ padding: '0.2rem', color: 'var(--danger)' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+
+                        {/* Subcategories Chips */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {cat.subcategories.map((sub, sIdx) => (
+                            <span
+                              key={sIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-color)',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: 'var(--radius-xs)',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-muted)',
+                              }}
+                            >
+                              {sub.name}
                               <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setActiveSubcatInputCatId(activeSubcatInputCatId === cat.id ? null : cat.id);
-                                  setNewSubcatName('');
-                                }}
-                                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                                type="button"
+                                onClick={() => promptDeleteSubcat(cat.id, sub.name)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer', padding: 0 }}
+                                title="Remove subcategory"
                               >
-                                + Sub-category
+                                <X size={10} />
                               </button>
+                            </span>
+                          ))}
 
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleDeleteCat(cat.id)}
-                                title="Delete category"
-                                style={{ padding: '0.2rem 0.4rem', color: 'var(--danger)' }}
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Sub-categories Chips */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', paddingLeft: '1.25rem' }}>
-                            {cat.subcategories.length === 0 ? (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                No subcategories (general spend)
-                              </span>
-                            ) : (
-                              cat.subcategories.map((sub, sIdx) => (
-                                <span
-                                  key={sIdx}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem',
-                                    background: 'var(--bg-surface)',
-                                    border: '1px solid var(--border-color)',
-                                    padding: '0.2rem 0.55rem',
-                                    borderRadius: 'var(--radius-sm)',
-                                    fontSize: '0.75rem',
-                                    color: 'var(--text-main)',
-                                  }}
-                                >
-                                  {sub.name}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSubcat(cat.id, sub.name)}
-                                    title="Delete subcategory"
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      color: 'var(--text-muted)',
-                                      cursor: 'pointer',
-                                      padding: 0,
-                                      display: 'flex',
-                                    }}
-                                  >
-                                    <X size={11} />
-                                  </button>
-                                </span>
-                              ))
-                            )}
-                          </div>
-
-                          {/* Inline Sub-category Input */}
-                          {activeSubcatInputCatId === cat.id && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '1.25rem', marginTop: '0.3rem' }}>
+                          {activeSubcatInputCatId === cat.id ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: '100%', marginTop: '0.25rem' }}>
                               <input
                                 type="text"
                                 className="input"
-                                style={{ padding: '0.25rem 0.55rem', fontSize: '0.8rem', maxWidth: '260px' }}
-                                placeholder="Sub-category name..."
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                placeholder="Subcategory name..."
                                 value={newSubcatName}
                                 onChange={(e) => setNewSubcatName(e.target.value)}
                                 autoFocus
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddSubcategorySubmit(cat.id);
-                                  }
+                                  if (e.key === 'Enter') handleAddSubcatSubmit(cat.id);
+                                  if (e.key === 'Escape') setActiveSubcatInputCatId(null);
                                 }}
                               />
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
-                                onClick={() => handleAddSubcategorySubmit(cat.id)}
-                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem' }}
+                                onClick={() => handleAddSubcatSubmit(cat.id)}
                               >
                                 Add
                               </button>
                               <button
                                 type="button"
                                 className="btn btn-secondary btn-sm"
+                                style={{ padding: '0.25rem 0.4rem' }}
                                 onClick={() => setActiveSubcatInputCatId(null)}
-                                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                               >
-                                Cancel
+                                <X size={12} />
                               </button>
                             </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSubcatInputCatId(cat.id);
+                                setNewSubcatName('');
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: '1px dashed var(--border-color)',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: 'var(--radius-xs)',
+                                fontSize: '0.7rem',
+                                color: 'var(--primary)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              + Subcategory
+                            </button>
                           )}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        variant={confirmDialog.variant}
+        loading={confirmDialog.loading}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Add / Edit Company Modal */}
+      {showCompanyModal && (
+        <div className="modal-backdrop" onClick={() => setShowCompanyModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>
+                    {editingCompany ? 'Edit Legal Entity' : 'Register Corporate Entity'}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Add branch, subsidiary, or holding company
+                  </span>
+                </div>
+              </div>
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={() => setShowCompanyModal(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitCompany}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Company Legal Name *</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Acme Technologies India Pvt Ltd"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Entity Purpose / Profile</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Software Development & Cloud Operations"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.25rem' }}>
+                  <input
+                    type="checkbox"
+                    id="isCoreBranch"
+                    checked={isCoreBranch}
+                    onChange={(e) => setIsCoreBranch(e.target.checked)}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="isCoreBranch" style={{ fontSize: '0.825rem', color: 'var(--text-main)', cursor: 'pointer' }}>
+                    Set as Core Operating Entity
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowCompanyModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={creatingComp || updatingComp}>
+                  {creatingComp || updatingComp ? 'Saving...' : editingCompany ? 'Update Entity' : 'Register Entity'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Add Section Modal */}
+      {/* Add Section Letter Modal */}
       {showAddSectionModal && (
         <div className="modal-backdrop" onClick={() => setShowAddSectionModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Add New Section / Letter</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowAddSectionModal(false)} style={{ padding: '0.3rem' }}>
-                <X size={15} />
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Section Letter</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  e.g. "X — Special Projects"
+                </span>
+              </div>
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={() => setShowAddSectionModal(false)}
+              >
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleAddSectionSubmit}>
-              <div className="form-group">
-                <label className="form-label">Section Letter (1 Character)</label>
-                <input
-                  type="text"
-                  className="input mono"
-                  maxLength="2"
-                  placeholder="X"
-                  value={newSectionLetter}
-                  onChange={(e) => setNewSectionLetter(e.target.value.toUpperCase())}
-                  required
-                  autoFocus
-                />
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Section Letter (Single Alphabet)</label>
+                  <input
+                    type="text"
+                    className="input mono"
+                    maxLength="1"
+                    placeholder="X"
+                    value={newSectionLetter}
+                    onChange={(e) => setNewSectionLetter(e.target.value.toUpperCase())}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Section Title</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Special Ventures"
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Section Name</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Special Ventures"
-                  value={newSectionName}
-                  onChange={(e) => setNewSectionName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddSectionModal(false)}>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowAddSectionModal(false)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Next: Add Category
+                <button type="submit" className="btn btn-primary btn-sm">
+                  Proceed to Category
                 </button>
               </div>
             </form>
@@ -772,131 +873,59 @@ export const CompaniesPage = () => {
       {/* Add Category Modal */}
       {showAddCatModal && (
         <div className="modal-backdrop" onClick={() => setShowAddCatModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Add Category</h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Account Category</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Section: <strong style={{ color: 'var(--text-main)' }}>{targetSectionLabel}</strong>
                 </span>
               </div>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowAddCatModal(false)} style={{ padding: '0.3rem' }}>
-                <X size={15} />
+              <button
+                className="btn btn-ghost btn-icon"
+                onClick={() => setShowAddCatModal(false)}
+              >
+                <X size={16} />
               </button>
             </div>
 
             <form onSubmit={handleCreateCategorySubmit}>
-              <div className="form-group">
-                <label className="form-label">Category Name *</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Corporate Insurance"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Initial Sub-category (Optional)</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. General Liability"
-                  value={newCatSubcat}
-                  onChange={(e) => setNewCatSubcat(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddCatModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={creatingCat}>
-                  {creatingCat ? 'Adding...' : 'Add Category'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Company Add / Edit Modal */}
-      {showCompanyModal && (
-        <div className="modal-backdrop" onClick={() => setShowCompanyModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>
-                {editingCompany ? 'Edit Legal Entity' : 'Register New Company'}
-              </h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowCompanyModal(false)} style={{ padding: '0.35rem' }}>
-                <X size={15} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitCompany} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Company / Legal Entity Name *</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Acme Tech Solutions Pvt Ltd"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Business Description</label>
-                <textarea
-                  className="textarea"
-                  rows="3"
-                  placeholder="Primary operating division, legal subsidiary, or project entity..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-
-              {!editingCompany && (
-                <div
-                  style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius)',
-                    padding: '0.85rem 1rem',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.75rem',
-                  }}
-                >
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Category Name *</label>
                   <input
-                    type="checkbox"
-                    id="isCoreBranchCheck"
-                    checked={isCoreBranch}
-                    onChange={(e) => setIsCoreBranch(e.target.checked)}
-                    style={{ marginTop: '0.2rem', accentColor: 'var(--primary)' }}
+                    type="text"
+                    className="input"
+                    placeholder="e.g. SaaS Subscriptions"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    autoFocus
+                    required
                   />
-                  <label htmlFor="isCoreBranchCheck" style={{ cursor: 'pointer' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)' }}>
-                      Designate as Core Branch
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                      Automatically provisions the standard 10-section CORE BRIGHT chart of accounts (51 categories across Compliance, Operations, Risk, etc.) into this company's private namespace.
-                    </div>
-                  </label>
                 </div>
-              )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCompanyModal(false)}>
+                <div className="form-group">
+                  <label className="form-label">Initial Subcategory (Optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. GitHub & Figma Seats"
+                    value={newCatSubcat}
+                    onChange={(e) => setNewCatSubcat(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowAddCatModal(false)}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={creatingComp || updatingComp}>
-                  {creatingComp || updatingComp ? 'Saving...' : editingCompany ? 'Save Changes' : 'Register Entity'}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={creatingCat}>
+                  {creatingCat ? 'Adding...' : 'Add Category'}
                 </button>
               </div>
             </form>

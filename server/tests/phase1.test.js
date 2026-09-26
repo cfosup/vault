@@ -84,6 +84,8 @@ async function runPhase1Test() {
 
     // 3. Test Organization & User Models
     console.log('\n[Step 3] Testing Organization & User Models...');
+    await Organization.deleteMany({ slug: 'bright-digital' });
+    await User.deleteMany({ email: 'ajay@brightdigital.test' });
     const org = await Organization.create({
       name: 'Bright Digital Technologies',
       slug: 'bright-digital',

@@ -69,6 +69,7 @@ export const authResolvers = {
         email: normalizedEmail,
         passwordHash,
         role: 'owner',
+        isEmailVerified: true,
         lastLogin: new Date(),
       });
 
@@ -82,6 +83,7 @@ export const authResolvers = {
         token,
         user,
         org,
+        message: 'Registration successful! Welcome to Vault.',
       };
     },
 
@@ -129,6 +131,7 @@ export const authResolvers = {
         org,
       };
     },
+
   },
 };
 

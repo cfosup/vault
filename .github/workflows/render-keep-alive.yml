@@ -1,0 +1,30 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Trigger every 14 minutes to prevent Render free-tier instance from sleeping (15-min timeout)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend Health Endpoint
+        run: |
+          RENDER_URL="${{ secrets.RENDER_BACKEND_URL }}"
+          if [ -z "$RENDER_URL" ]; then
+            echo "RENDER_BACKEND_URL secret is not set yet. Please add it to GitHub Repository Secrets (Settings -> Secrets -> Actions)."
+            exit 0
+          fi
+          
+          # Clean URL
+          CLEAN_URL="${RENDER_URL%/}/health"
+          echo "Pinging health endpoint: $CLEAN_URL"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CLEAN_URL")
+          echo "Render response status: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Success! Render backend is warm and active."
+          else
+            echo "Warning: Received HTTP $STATUS"
+          fi

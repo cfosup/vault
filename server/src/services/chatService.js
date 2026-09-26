@@ -86,7 +86,7 @@ const generateDeterministicReply = (message, context) => {
     return `You have ${context.budgets.length} budget bucket(s) configured: ${context.budgets.map((b) => `${b.name} (₹${b.limit.toLocaleString('en-IN')})`).join(', ')}.`;
   }
   if (query.includes('hello') || query.includes('hi') || query.includes('hey')) {
-    return `Hello! I am your ExpenseFlow AI finance assistant. I can summarize your expenses, income, net balance, top categories, and budget limits. How can I assist you today?`;
+    return `Hello! I am your Vault AI finance assistant. I can summarize your expenses, income, net balance, top categories, and budget limits. How can I assist you today?`;
   }
 
   // Generic financial summary fallback
@@ -115,7 +115,7 @@ export const generateChatReply = async (orgId, userId, sessionId, message, histo
       temperature: 0.2,
     });
 
-    const systemPrompt = `You are a professional financial AI assistant for ExpenseFlow SaaS.
+    const systemPrompt = `You are a professional financial AI assistant for Vault SaaS.
 You have access to the following real-time financial data for this organization:
 - Total Expenses: ₹${context.totalExpenses.toLocaleString('en-IN')} (${context.expenseCount} entries)
 - Total Income: ₹${context.totalIncome.toLocaleString('en-IN')} (${context.incomeCount} entries)
@@ -128,7 +128,7 @@ You have access to the following real-time financial data for this organization:
 Rules:
 1. Ground your answers strictly in the financial facts above.
 2. Format all monetary values with ₹ (Indian Rupee).
-3. If asked questions unrelated to finance or ExpenseFlow, reply: "I can only help with finance tracking data."
+3. If asked questions unrelated to finance or Vault, reply: "I can only help with finance tracking data."
 4. If asked for information not present in the data, reply: "I cannot find data for that."
 5. Be concise and helpful.`;
 

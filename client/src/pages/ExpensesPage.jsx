@@ -10,18 +10,15 @@ import {
   FolderPlus,
   Zap,
   TableProperties,
-  ArrowRight,
   Receipt,
-  Calendar,
-  CreditCard,
   Building,
   TrendingUp,
-  Tag,
 } from 'lucide-react';
 import { GET_EXPENSES, GET_COMPANIES, GET_CATEGORIES, GET_PAYMENT_METHODS } from '../graphql/queries';
 import { CREATE_EXPENSES, DELETE_EXPENSE, CREATE_CATEGORY, ADD_SUBCATEGORY } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { CategorySelect } from '../components/common/CategorySelect';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 import { client } from '../graphql/client';
 
 const CORE_SECTIONS = [
@@ -30,7 +27,6 @@ const CORE_SECTIONS = [
   { group: 'R', groupLabel: 'R — Risk & Reserves' },
   { group: 'E', groupLabel: 'E — Equipment & Systems' },
   { group: 'B', groupLabel: 'B — Brand & Culture' },
-  { group: 'R', groupLabel: 'R — R&D / Innovation' },
   { group: 'I', groupLabel: 'I — Incentives & Hospitality' },
   { group: 'G', groupLabel: 'G — Growth' },
   { group: 'H', groupLabel: 'H — Human Resources' },
@@ -57,6 +53,10 @@ export const ExpensesPage = () => {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickPaymentMethodId, setQuickPaymentMethodId] = useState('');
   const [quickNotes, setQuickNotes] = useState('');
+
+  // Delete Confirmation Modal State
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Quick Add Category Modal state
   const [showAddCatModal, setShowAddCatModal] = useState(false);
@@ -124,48 +124,47 @@ export const ExpensesPage = () => {
   const totalPages = data?.expenses?.totalPages || 1;
   const totalCount = data?.expenses?.totalCount || 0;
 
-  // Pre-load categories for company if not in cache
-  const loadCategoriesForCompany = async (compId) => {
-    if (!compId || companyCategories[compId]) return;
+  // Sync activeCompanyId with quickCompanyId
+  useEffect(() => {
+    if (activeCompanyId) {
+      setQuickCompanyId(activeCompanyId);
+      setRows((prev) =>
+        prev.map((r, i) => (i === 0 && !r.companyId ? { ...r, companyId: activeCompanyId } : r))
+      );
+    }
+  }, [activeCompanyId]);
+
+  // Load categories for a specific company
+  const loadCategoriesForCompany = async (cId) => {
+    if (!cId || companyCategories[cId]) return;
     try {
       const res = await client.query({
         query: GET_CATEGORIES,
-        variables: { companyId: compId },
-        fetchPolicy: 'network-only',
+        variables: { companyId: cId },
+        fetchPolicy: 'cache-first',
       });
       if (res.data?.categories) {
         setCompanyCategories((prev) => ({
           ...prev,
-          [compId]: res.data.categories,
+          [cId]: res.data.categories,
         }));
       }
     } catch (err) {
-      console.error('Error fetching company categories:', err);
+      console.error('Error fetching categories for company:', err);
     }
   };
 
   const getCategoriesForRow = (rowCompanyId) => {
-    const compId = rowCompanyId || activeCompanyId;
-    if (compId && companyCategories[compId]) {
-      return companyCategories[compId];
+    const targetComp = rowCompanyId || activeCompanyId;
+    if (targetComp && companyCategories[targetComp]) {
+      return companyCategories[targetComp];
     }
     return defaultCategories;
   };
 
-  useEffect(() => {
-    const defaultComp = activeCompanyId || companies[0]?.id || '';
-    if (defaultComp) {
-      setQuickCompanyId(defaultComp);
-      loadCategoriesForCompany(defaultComp);
-      setRows((prev) =>
-        prev.map((r) => (!r.companyId ? { ...r, companyId: defaultComp } : r))
-      );
-    }
-  }, [activeCompanyId, companies]);
-
-  // Metrics summary
+  // Metrics
   const totalFilteredAmount = useMemo(() => {
-    return expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    return expenses.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   }, [expenses]);
 
   const avgTicketSize = useMemo(() => {
@@ -173,26 +172,27 @@ export const ExpensesPage = () => {
     return Math.round(totalFilteredAmount / expenses.length);
   }, [expenses, totalFilteredAmount]);
 
-  // Handle Quick Entry Submit
+  // Quick Single Submit
   const handleQuickSubmit = async (e, addAnother = false) => {
     if (e) e.preventDefault();
+
     if (!quickCompanyId || !quickCategoryId || !quickAmount) {
       alert('Please fill Company, Category, and Amount.');
       return;
     }
 
-    const selectedPm = paymentMethods.find((p) => p.id === quickPaymentMethodId);
+    const pm = paymentMethods.find((p) => p.id === quickPaymentMethodId);
 
     const input = {
       companyId: quickCompanyId,
       date: quickDate,
       categoryId: quickCategoryId,
       categoryName: quickCategoryName,
-      subcategory: quickSubcategory || '',
+      subcategory: quickSubcategory,
       amount: parseFloat(quickAmount) || 0,
       vendor: quickVendor,
       paymentMethodId: quickPaymentMethodId || null,
-      paymentMethodName: selectedPm?.name || '',
+      paymentMethodName: pm?.name || '',
       notes: quickNotes,
     };
 
@@ -208,22 +208,18 @@ export const ExpensesPage = () => {
         setQuickAmount('');
         setQuickVendor('');
         setQuickNotes('');
-        setQuickCategoryId('');
-        setQuickSubcategory('');
       }
     } catch (err) {
       alert('Error saving expense: ' + err.message);
     }
   };
 
-  // Batch Form Handlers
+  // Batch Handlers
   const handleAddRow = () => {
-    const defaultComp = activeCompanyId || companies[0]?.id || '';
-    if (defaultComp) loadCategoriesForCompany(defaultComp);
     setRows([
       ...rows,
       {
-        companyId: defaultComp,
+        companyId: activeCompanyId || companies[0]?.id || '',
         date: new Date().toISOString().split('T')[0],
         categoryId: '',
         categoryName: '',
@@ -386,7 +382,6 @@ export const ExpensesPage = () => {
           }
           setRows(updated);
         } else {
-          // Quick form
           setQuickCategoryId(newCat.id);
           setQuickCategoryName(newCat.name);
           if (catInitialSub.trim()) {
@@ -466,13 +461,17 @@ export const ExpensesPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this expense?')) return;
+  const confirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteExpense({ variables: { id } });
+      await deleteExpense({ variables: { id: expenseToDelete } });
       refetch();
+      setExpenseToDelete(null);
     } catch (err) {
       alert('Error deleting: ' + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -484,7 +483,7 @@ export const ExpensesPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Header & Overview Strip */}
       <div
         className="card"
@@ -494,30 +493,29 @@ export const ExpensesPage = () => {
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1.25rem',
-          padding: '1.5rem 1.75rem',
-          background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%)',
+          padding: '1.35rem 1.65rem',
+          background: 'var(--bg-card)',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Disbursements & Expenses</h1>
-            <span className="badge badge-danger" style={{ fontSize: '0.7rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <h1 style={{ fontSize: '1.65rem' }}>Disbursements & Expenses</h1>
+            <span className="badge badge-danger">
               {totalCount} Total Recorded
             </span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Record payments with in-flight chart of accounts creation, multi-entity tagging, and CSV export
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>
             <Download size={14} /> Export CSV
           </button>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => setShowForm(!showForm)}
-            style={{ padding: '0.45rem 1rem' }}
           >
             {showForm ? <X size={15} /> : <Plus size={15} />}
             {showForm ? 'Close Entry Form' : '+ Record Expense'}
@@ -607,9 +605,9 @@ export const ExpensesPage = () => {
       {showForm && (
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', border: '1.5px solid var(--primary)' }}>
           {/* Mode Switcher */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-color)' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Record Operational Expense</h3>
+              <h3 style={{ fontSize: '1.15rem' }}>Record Operational Expense</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 Categories are scoped to the selected company. Add categories or subcategories in-flight anytime.
               </p>
@@ -768,8 +766,7 @@ export const ExpensesPage = () => {
                     {quickCategoryId && (
                       <button
                         type="button"
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '0.4rem 0.6rem' }}
+                        className="btn btn-secondary btn-icon"
                         title="Add sub-category"
                         onClick={() => handleOpenAddSubcat(null, quickCategoryId)}
                       >
@@ -851,29 +848,7 @@ export const ExpensesPage = () => {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '120px 150px 220px 170px 130px 110px 130px 40px',
-                    gap: '0.5rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color: 'var(--text-muted)',
-                    padding: '0 0.5rem',
-                  }}
-                >
-                  <div>Date</div>
-                  <div>Company</div>
-                  <div>Category</div>
-                  <div>Subcategory</div>
-                  <div>Vendor</div>
-                  <div>Amount (₹)</div>
-                  <div>Payment Method</div>
-                  <div></div>
-                </div>
-
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
                 {rows.map((row, idx) => {
                   const rowCats = getCategoriesForRow(row.companyId);
                   const selectedCat = rowCats.find((c) => c.id === row.categoryId);
@@ -884,13 +859,14 @@ export const ExpensesPage = () => {
                       key={idx}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '120px 150px 220px 170px 130px 110px 130px 40px',
+                        gridTemplateColumns: '120px 140px 180px 160px 140px 120px 130px 40px',
                         gap: '0.5rem',
                         alignItems: 'center',
                         background: 'var(--bg-surface)',
-                        padding: '0.55rem 0.65rem',
-                        borderRadius: 'var(--radius-sm)',
+                        padding: '0.65rem 0.85rem',
+                        borderRadius: 'var(--radius)',
                         border: '1px solid var(--border-color)',
+                        minWidth: '1000px',
                       }}
                     >
                       <input
@@ -907,10 +883,10 @@ export const ExpensesPage = () => {
                         onChange={(e) => handleRowChange(idx, 'companyId', e.target.value)}
                         required
                       >
-                        <option value="">Select Company</option>
+                        <option value="">Company</option>
                         {companies.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                            {c.name}
                           </option>
                         ))}
                       </select>
@@ -919,7 +895,7 @@ export const ExpensesPage = () => {
                         categories={rowCats}
                         value={row.categoryId}
                         onChange={(e) => handleRowChange(idx, 'categoryId', e.target.value)}
-                        placeholder="Select Category"
+                        placeholder="Category"
                         includeAddNew={true}
                         onAddNew={() => handleOpenAddCategory(idx)}
                         required
@@ -938,7 +914,7 @@ export const ExpensesPage = () => {
                           }}
                           style={{ flex: 1 }}
                         >
-                          <option value="">Subcategory (Opt)</option>
+                          <option value="">Subcategory</option>
                           {row.categoryId && (
                             <option value="__ADD_NEW_SUBCAT__" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
                               + Add Sub-category...
@@ -954,8 +930,7 @@ export const ExpensesPage = () => {
                         {row.categoryId && (
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '0.35rem' }}
+                            className="btn btn-secondary btn-icon"
                             title="Add sub-category"
                             onClick={() => handleOpenAddSubcat(idx, row.categoryId)}
                           >
@@ -998,10 +973,10 @@ export const ExpensesPage = () => {
 
                       <button
                         type="button"
-                        className="btn btn-secondary btn-sm"
+                        className="btn btn-secondary btn-icon"
                         onClick={() => handleRemoveRow(idx)}
                         disabled={rows.length === 1}
-                        style={{ padding: '0.4rem', color: 'var(--danger)' }}
+                        style={{ color: 'var(--danger)' }}
                         title="Delete row"
                       >
                         <Trash2 size={14} />
@@ -1027,7 +1002,7 @@ export const ExpensesPage = () => {
       {/* Filters & Search Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ position: 'relative', width: '100%', maxWidth: '360px' }}>
-          <Search size={15} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
+          <Search size={15} style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} />
           <input
             type="text"
             className="input"
@@ -1041,7 +1016,7 @@ export const ExpensesPage = () => {
           />
         </div>
 
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
           Showing <strong>{expenses.length}</strong> of <strong>{totalCount}</strong> ledger records
         </span>
       </div>
@@ -1065,9 +1040,11 @@ export const ExpensesPage = () => {
             {expenses.length === 0 ? (
               <tr>
                 <td colSpan="8" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
-                  <Receipt size={36} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }} />
-                  <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>No expense records found</p>
-                  <p style={{ fontSize: '0.85rem' }}>Click "+ Record Expense" above to disburse your first payment</p>
+                  <div className="empty-state">
+                    <div className="empty-icon"><Receipt size={24} /></div>
+                    <div className="empty-title">No expense records found</div>
+                    <div className="empty-desc">Click "+ Record Expense" above to disburse your first payment</div>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -1083,7 +1060,7 @@ export const ExpensesPage = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{comp?.name || '—'}</span>
                         {comp?.isCoreBranch && (
-                          <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.08rem 0.35rem' }}>
+                          <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem' }}>
                             Core
                           </span>
                         )}
@@ -1116,6 +1093,7 @@ export const ExpensesPage = () => {
                             fontSize: '0.65rem',
                             fontWeight: 700,
                             color: 'var(--text-muted)',
+                            flexShrink: 0,
                           }}
                         >
                           {(exp.vendor || 'EX').substring(0, 2).toUpperCase()}
@@ -1133,10 +1111,10 @@ export const ExpensesPage = () => {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleDelete(exp.id)}
+                        className="btn btn-secondary btn-icon"
+                        onClick={() => setExpenseToDelete(exp.id)}
                         title="Delete Expense"
-                        style={{ padding: '0.32rem 0.5rem', color: 'var(--danger)' }}
+                        style={{ color: 'var(--danger)' }}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -1172,124 +1150,151 @@ export const ExpensesPage = () => {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!expenseToDelete}
+        title="Delete Expense Record"
+        message="Are you sure you want to permanently delete this expense record from the ledger? This action cannot be undone."
+        confirmText="Delete Record"
+        cancelText="Keep"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={confirmDeleteExpense}
+        onCancel={() => setExpenseToDelete(null)}
+      />
+
       {/* In-Flight Category Creation Modal */}
       {showAddCatModal && (
         <div className="modal-backdrop" onClick={() => setShowAddCatModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FolderPlus size={18} style={{ color: 'var(--primary)' }} />
-                  Create Category In-Flight
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Saves directly into the company's chart of accounts and selects it immediately.
-                </p>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FolderPlus size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Create Category In-Flight</h3>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Saves directly into the company chart of accounts
+                  </span>
+                </div>
               </div>
               <button
-                className="btn btn-secondary btn-sm"
+                className="btn btn-ghost btn-icon"
                 onClick={() => setShowAddCatModal(false)}
-                style={{ padding: '0.35rem' }}
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Target Legal Entity</label>
-                <select
-                  className="select"
-                  value={catCompanyId}
-                  onChange={(e) => setCatCompanyId(e.target.value)}
-                  required
-                >
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.isCoreBranch ? '(Core Branch)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">CORE BRIGHT Section / Letter</label>
-                <select
-                  className="select"
-                  value={catSection}
-                  onChange={(e) => setCatSection(e.target.value)}
-                  required
-                >
-                  {CORE_SECTIONS.map((s, idx) => (
-                    <option key={idx} value={s.group}>
-                      {s.groupLabel}
-                    </option>
-                  ))}
-                  <option value="CUSTOM">— Custom Letter / Section —</option>
-                </select>
-              </div>
-
-              {catSection === 'CUSTOM' && (
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Section Letter (e.g. X)</label>
-                    <input
-                      type="text"
-                      className="input mono"
-                      maxLength="2"
-                      placeholder="X"
-                      value={catCustomGroup}
-                      onChange={(e) => setCatCustomGroup(e.target.value.toUpperCase())}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Section Label</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="e.g. X — Special Projects"
-                      value={catCustomLabel}
-                      onChange={(e) => setCatCustomLabel(e.target.value)}
-                      required
-                    />
-                  </div>
+            <form onSubmit={handleSaveCategory}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Target Legal Entity</label>
+                  <select
+                    className="select"
+                    value={catCompanyId}
+                    onChange={(e) => setCatCompanyId(e.target.value)}
+                    required
+                  >
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.isCoreBranch ? '(Core Branch)' : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              <div className="form-group">
-                <label className="form-label">Category Name *</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Cloud Server Hosting"
-                  value={catName}
-                  onChange={(e) => setCatName(e.target.value)}
-                  autoFocus
-                  required
-                />
+                <div className="form-group">
+                  <label className="form-label">CORE BRIGHT Section / Letter</label>
+                  <select
+                    className="select"
+                    value={catSection}
+                    onChange={(e) => setCatSection(e.target.value)}
+                    required
+                  >
+                    {CORE_SECTIONS.map((s, idx) => (
+                      <option key={idx} value={s.group}>
+                        {s.groupLabel}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">— Custom Letter / Section —</option>
+                  </select>
+                </div>
+
+                {catSection === 'CUSTOM' && (
+                  <div className="grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Section Letter (e.g. X)</label>
+                      <input
+                        type="text"
+                        className="input mono"
+                        maxLength="2"
+                        placeholder="X"
+                        value={catCustomGroup}
+                        onChange={(e) => setCatCustomGroup(e.target.value.toUpperCase())}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Section Label</label>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="e.g. X — Special Projects"
+                        value={catCustomLabel}
+                        onChange={(e) => setCatCustomLabel(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Category Name *</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Cloud Server Hosting"
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Initial Sub-category (Optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Production Cluster AWS"
+                    value={catInitialSub}
+                    onChange={(e) => setCatInitialSub(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Initial Sub-category (Optional)</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Production Cluster AWS"
-                  value={catInitialSub}
-                  onChange={(e) => setCatInitialSub(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div className="modal-footer">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary btn-sm"
                   onClick={() => setShowAddCatModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={isSubmittingCat}>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingCat}>
                   {isSubmittingCat ? 'Creating...' : 'Create & Select'}
                 </button>
               </div>
@@ -1302,45 +1307,46 @@ export const ExpensesPage = () => {
       {showAddSubModal && (
         <div className="modal-backdrop" onClick={() => setShowAddSubModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: '1.15rem' }}>Add Sub-category</h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Sub-category</h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Parent Category: <strong style={{ color: 'var(--text-main)' }}>{subTargetCatName}</strong>
-                </p>
+                </span>
               </div>
               <button
-                className="btn btn-secondary btn-sm"
+                className="btn btn-ghost btn-icon"
                 onClick={() => setShowAddSubModal(false)}
-                style={{ padding: '0.35rem' }}
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveSubcategory} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Sub-category Name *</label>
-                <input
-                  type="text"
-                  className="input"
-                  placeholder="e.g. Courier & Overnight Shipping"
-                  value={newSubName}
-                  onChange={(e) => setNewSubName(e.target.value)}
-                  autoFocus
-                  required
-                />
+            <form onSubmit={handleSaveSubcategory}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Sub-category Name *</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Courier & Overnight Shipping"
+                    value={newSubName}
+                    onChange={(e) => setNewSubName(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div className="modal-footer">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary btn-sm"
                   onClick={() => setShowAddSubModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={isSubmittingSub}>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingSub}>
                   {isSubmittingSub ? 'Adding...' : 'Add & Select'}
                 </button>
               </div>

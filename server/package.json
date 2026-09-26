@@ -1,12 +1,13 @@
 {
-  "name": "expenseflow-server",
+  "name": "vault-server",
   "version": "1.0.0",
-  "description": "ExpenseFlow SaaS Backend - Express + Apollo Server + Mongoose",
+  "description": "Vault Financial SaaS Backend - Express + Apollo Server + Mongoose",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "clear-db": "node scripts/clearDb.js",
     "test:phase1": "node tests/phase1.test.js",
     "test:phase2": "node tests/phase2.test.js",
     "test:phase3": "node tests/phase3.test.js",
@@ -28,6 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "langchain": "^0.2.0",
     "mongoose": "^8.3.0",
+    "nodemailer": "^10.0.10",
     "zod": "^3.23.8"
   },
   "devDependencies": {
