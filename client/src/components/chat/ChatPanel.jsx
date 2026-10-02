@@ -99,7 +99,7 @@ export const ChatPanel = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
+                  color: 'var(--primary-foreground)',
                 }}
               >
                 <MessageSquare size={15} />

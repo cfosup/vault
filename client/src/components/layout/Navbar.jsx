@@ -146,7 +146,7 @@ export const Navbar = () => {
                   height: '28px',
                   borderRadius: 'var(--radius-full)',
                   background: 'var(--primary)',
-                  color: '#fff',
+                  color: 'var(--primary-foreground)',
                   fontSize: '0.72rem',
                   fontWeight: 700,
                   display: 'flex',

@@ -299,7 +299,7 @@ export const DashboardPage = () => {
                 style={{
                   border: 'none',
                   background: datePreset === preset.id ? 'var(--primary)' : 'transparent',
-                  color: datePreset === preset.id ? '#fff' : 'var(--text-muted)',
+                  color: datePreset === preset.id ? 'var(--primary-foreground)' : 'var(--text-muted)',
                   padding: '0.35rem 0.75rem',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.785rem',

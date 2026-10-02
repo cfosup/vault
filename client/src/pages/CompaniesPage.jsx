@@ -409,7 +409,7 @@ export const CompaniesPage = () => {
                       height: '40px',
                       borderRadius: 'var(--radius)',
                       background: c.isCoreBranch ? 'var(--primary)' : 'var(--bg-surface)',
-                      color: c.isCoreBranch ? '#fff' : 'var(--text-main)',
+                      color: c.isCoreBranch ? 'var(--primary-foreground)' : 'var(--text-main)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

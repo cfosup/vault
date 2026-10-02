@@ -940,7 +940,7 @@ p { color: var(--text-muted); font-size: 0.875rem; }
   height: 48px;
   border-radius: var(--radius-full);
   background: var(--primary);
-  color: #ffffff;
+  color: var(--primary-foreground);
   border: none;
   cursor: pointer;
   display: flex;
@@ -1003,7 +1003,7 @@ p { color: var(--text-muted); font-size: 0.875rem; }
 .chat-msg.user {
   align-self: flex-end;
   background: var(--primary);
-  color: #ffffff;
+  color: var(--primary-foreground);
 }
 
 .chat-msg.assistant {

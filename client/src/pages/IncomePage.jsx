@@ -344,7 +344,7 @@ export const IncomePage = () => {
                   fontWeight: 600,
                   cursor: 'pointer',
                   background: entryMode === 'quick' ? 'var(--primary)' : 'transparent',
-                  color: entryMode === 'quick' ? '#fff' : 'var(--text-muted)',
+                  color: entryMode === 'quick' ? 'var(--primary-foreground)' : 'var(--text-muted)',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -364,7 +364,7 @@ export const IncomePage = () => {
                   fontWeight: 600,
                   cursor: 'pointer',
                   background: entryMode === 'batch' ? 'var(--primary)' : 'transparent',
-                  color: entryMode === 'batch' ? '#fff' : 'var(--text-muted)',
+                  color: entryMode === 'batch' ? 'var(--primary-foreground)' : 'var(--text-muted)',
                   transition: 'all 0.15s ease',
                 }}
               >
