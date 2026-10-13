@@ -33,6 +33,7 @@ import {
   RESET_COMPANY_CATEGORIES_TO_CORE,
 } from '../graphql/mutations';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { useAuthStore } from '../store/authStore';
 
 export const CompaniesPage = () => {
   // Company CRUD state
@@ -41,6 +42,7 @@ export const CompaniesPage = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isCoreBranch, setIsCoreBranch] = useState(false);
+  const [companyError, setCompanyError] = useState('');
 
   // Category Structure Hierarchy Manager state
   const [structureCompany, setStructureCompany] = useState(null);
@@ -129,6 +131,7 @@ export const CompaniesPage = () => {
     setName('');
     setDescription('');
     setIsCoreBranch(false);
+    setCompanyError('');
     setShowCompanyModal(true);
   };
 
@@ -137,30 +140,53 @@ export const CompaniesPage = () => {
     setName(c.name);
     setDescription(c.description || '');
     setIsCoreBranch(!!c.isCoreBranch);
+    setCompanyError('');
     setShowCompanyModal(true);
   };
 
   const handleSubmitCompany = async (e) => {
     e.preventDefault();
+    setCompanyError('');
+
+    if (!name.trim()) {
+      setCompanyError('Company legal name is required.');
+      return;
+    }
+
     try {
       if (editingCompany) {
         await updateCompany({
           variables: {
             id: editingCompany.id,
-            input: { name, description, isCoreBranch },
+            input: { name: name.trim(), description: description.trim(), isCoreBranch },
           },
         });
       } else {
         await createCompany({
           variables: {
-            input: { name, description, isCoreBranch },
+            input: { name: name.trim(), description: description.trim(), isCoreBranch },
           },
         });
       }
       setShowCompanyModal(false);
       refetchCompanies();
     } catch (err) {
-      alert('Error saving company: ' + err.message);
+      const msg = err.message || 'Error saving company';
+      if (
+        msg.includes('Authentication required') ||
+        msg.includes('UNAUTHENTICATED') ||
+        msg.includes('jwt expired') ||
+        msg.includes('invalid signature')
+      ) {
+        try {
+          useAuthStore.getState().logout();
+        } catch {
+          // ignore
+        }
+        window.location.href = '/login?expired=true';
+        return;
+      }
+      setCompanyError(msg);
     }
   };
 
@@ -752,6 +778,25 @@ export const CompaniesPage = () => {
 
             <form onSubmit={handleSubmitCompany}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {companyError && (
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--danger-bg)',
+                      border: '1px solid var(--danger-border)',
+                      color: 'var(--danger)',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                    <span>{companyError}</span>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label className="form-label">Company Legal Name *</label>
                   <input

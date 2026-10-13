@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@apollo/client/react';
 import { LOGIN, REGISTER } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
@@ -23,6 +23,9 @@ export const LoginPage = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isExpired = searchParams.get('expired') === 'true';
   const loginStore = useAuthStore((state) => state.login);
 
   const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN);
@@ -159,6 +162,27 @@ export const LoginPage = () => {
               Create Account
             </button>
           </div>
+
+          {/* Session Expired Banner */}
+          {isExpired && !errorMsg && (
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--warning-bg)',
+                border: '1px solid var(--warning-border)',
+                color: 'var(--warning)',
+                fontSize: '0.825rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+              }}
+            >
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>Your session has expired. Please sign in again to continue.</span>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMsg && (

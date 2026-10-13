@@ -180,7 +180,7 @@ export const SettingsPage = () => {
             <div>
               <h3 style={{ fontSize: '1.1rem' }}>Organization Profile</h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Multi-entity B2B workspace details
+                Workspace details & subscription
               </span>
             </div>
           </div>
@@ -199,12 +199,12 @@ export const SettingsPage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Subscription Plan</span>
               <span className="badge badge-success" style={{ textTransform: 'uppercase' }}>
-                {org?.plan || 'Enterprise'} Tier
+                {org?.plan || 'Free'} Tier
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>CORE BRIGHT Architecture</span>
-              <span className="badge badge-neutral">10 Standard Sections</span>
+              <span style={{ color: 'var(--text-muted)' }}>Accounting Framework</span>
+              <span className="badge badge-neutral">CORE BRIGHT (10 Sections)</span>
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ export const SettingsPage = () => {
             <div>
               <h3 style={{ fontSize: '1.1rem' }}>Your Account</h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Authenticated administrator session
+                Personal account details & permissions
               </span>
             </div>
           </div>
@@ -249,16 +249,10 @@ export const SettingsPage = () => {
                 <CheckCircle size={12} /> Active
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Security Role</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Role</span>
               <span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>
                 {user?.role || 'Admin'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Authentication</span>
-              <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', fontWeight: 600 }}>
-                <CheckCircle size={14} /> Active JWT Session
               </span>
             </div>
           </div>
@@ -586,62 +580,64 @@ export const SettingsPage = () => {
         )}
       </div>
 
-      {/* Danger Zone: Reset Complete Database */}
-      <div
-        className="card"
-        style={{
-          border: '1px solid color-mix(in srgb, var(--destructive) 40%, transparent)',
-          backgroundColor: 'color-mix(in srgb, var(--destructive) 4%, transparent)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--danger-bg)',
-              color: 'var(--danger)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <AlertTriangle size={20} />
+      {/* Danger Zone: Developer Reset (Local Development Only) */}
+      {import.meta.env.DEV && (
+        <div
+          className="card"
+          style={{
+            border: '1px solid color-mix(in srgb, var(--destructive) 40%, transparent)',
+            backgroundColor: 'color-mix(in srgb, var(--destructive) 4%, transparent)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--danger-bg)',
+                color: 'var(--danger)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--danger)' }}>Danger Zone: Reset Database</h3>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Wipe all transactions, companies, and user accounts to start completely fresh as a new project
+              </span>
+            </div>
           </div>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--danger)' }}>Danger Zone: Reset Database</h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Wipe all transactions, companies, and user accounts to start completely fresh as a new project
-            </span>
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '580px' }}>
-            This action will clear all expenses, revenues, budget caps, payment methods, and user records. Core default categories will be safely reseeded.
-          </p>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={handleResetDatabase}
-            disabled={resettingDb}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-          >
-            <RotateCcw size={15} />
-            {resettingDb ? 'Resetting...' : 'Reset Complete Database'}
-          </button>
-        </div>
-
-        {resetMsg && (
-          <div style={{ padding: '0.55rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--success-bg)', color: 'var(--success)', fontSize: '0.825rem' }}>
-            {resetMsg}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '580px' }}>
+              This action will clear all expenses, revenues, budget caps, payment methods, and user records. Core default categories will be safely reseeded.
+            </p>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleResetDatabase}
+              disabled={resettingDb}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <RotateCcw size={15} />
+              {resettingDb ? 'Resetting...' : 'Reset Complete Database'}
+            </button>
           </div>
-        )}
-      </div>
+
+          {resetMsg && (
+            <div style={{ padding: '0.55rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--success-bg)', color: 'var(--success)', fontSize: '0.825rem' }}>
+              {resetMsg}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal

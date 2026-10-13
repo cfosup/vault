@@ -1,8 +1,43 @@
 import { create } from 'zustand';
 
-const storedToken = localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token');
-const storedUser = localStorage.getItem('vault_user') || localStorage.getItem('expenseflow_user');
-const storedOrg = localStorage.getItem('vault_org') || localStorage.getItem('expenseflow_org');
+export const isTokenExpired = (token) => {
+  if (!token || typeof token !== 'string') return true;
+  if (token === 'undefined' || token === 'null' || token.trim() === '') return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const decoded = JSON.parse(jsonPayload);
+    if (!decoded.exp) return false;
+    return decoded.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+};
+
+const rawToken = localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token');
+const tokenValid = !isTokenExpired(rawToken);
+
+if (!tokenValid && rawToken) {
+  localStorage.removeItem('vault_token');
+  localStorage.removeItem('vault_user');
+  localStorage.removeItem('vault_org');
+  localStorage.removeItem('vault_active_company_id');
+  localStorage.removeItem('expenseflow_token');
+  localStorage.removeItem('expenseflow_user');
+  localStorage.removeItem('expenseflow_org');
+}
+
+const storedToken = tokenValid ? rawToken : null;
+const storedUser = tokenValid ? (localStorage.getItem('vault_user') || localStorage.getItem('expenseflow_user')) : null;
+const storedOrg = tokenValid ? (localStorage.getItem('vault_org') || localStorage.getItem('expenseflow_org')) : null;
 const storedCompanyId = localStorage.getItem('vault_active_company_id') || localStorage.getItem('expenseflow_active_company_id');
 const initialTheme = localStorage.getItem('vault_theme') || localStorage.getItem('expenseflow_theme') || 'dark';
 

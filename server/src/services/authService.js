@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'expenseflow_super_secret_jwt_key_development_2026';
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
 
 export const hashPassword = async (password) => {
   if (!password || password.length < 6) {
