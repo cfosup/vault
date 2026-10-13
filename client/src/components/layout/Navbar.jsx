@@ -87,9 +87,9 @@ export const Navbar = () => {
 
           {/* Actions & Profile */}
           <div className="nav-actions">
-            {/* Company Switcher */}
+            {/* Company Switcher (Desktop / Tablet) */}
             {companies.length > 0 && (
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div className="navbar-company-switcher" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <select
                   className="company-select"
                   value={activeCompanyId || ''}
@@ -128,8 +128,9 @@ export const Navbar = () => {
               )}
             </button>
 
-            {/* User Profile Capsule */}
+            {/* User Profile Capsule (Desktop / Tablet) */}
             <div
+              className="navbar-user-capsule"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -158,7 +159,7 @@ export const Navbar = () => {
               >
                 {getInitials(user?.name)}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+              <div className="navbar-user-text" style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
                   {user?.name?.split(' ')[0] || 'User'}
                 </span>
@@ -201,24 +202,103 @@ export const Navbar = () => {
         </div>
       </header>
 
+      {/* Mobile Drawer Overlay Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-nav-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Mobile Drawer */}
       <div className={`mobile-nav-drawer ${mobileMenuOpen ? 'open' : ''}`}>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              style={{ padding: '0.65rem 0.85rem', width: '100%' }}
+        {/* User Card in Mobile Drawer */}
+        <div className="mobile-drawer-user-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
             >
-              <Icon size={16} />
-              <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
-            </NavLink>
-          );
-        })}
+              {getInitials(user?.name)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                {user?.name || 'User'}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {org?.name || 'Organization'} {user?.email ? `• ${user.email}` : ''}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              handleLogout();
+            }}
+            className="btn btn-secondary btn-sm"
+            style={{ color: 'var(--danger)', padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+          >
+            <LogOut size={13} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+
+        {/* Company Switcher in Mobile Drawer */}
+        {companies.length > 0 && (
+          <div className="mobile-drawer-company-section">
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Active Legal Entity
+            </label>
+            <select
+              className="select"
+              value={activeCompanyId || ''}
+              onChange={(e) => {
+                setActiveCompanyId(e.target.value || null);
+                setMobileMenuOpen(false);
+              }}
+              style={{ width: '100%', fontSize: '0.85rem', marginTop: '0.25rem' }}
+            >
+              <option value="">All Entities (Consolidated)</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Navigation Links */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                style={{ padding: '0.65rem 0.85rem', width: '100%', borderRadius: 'var(--radius)' }}
+              >
+                <Icon size={16} />
+                <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
       </div>
     </>
   );

@@ -276,16 +276,7 @@ export const DashboardPage = () => {
         {/* Toolbar Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           {/* Timeframe Pill Segment */}
-          <div
-            style={{
-              display: 'flex',
-              background: 'var(--bg-app)',
-              padding: '0.25rem',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--border-color)',
-              gap: '0.2rem',
-            }}
-          >
+          <div className="timeframe-pill-container">
             {[
               { id: 'this_month', label: 'This Month' },
               { id: 'last_month', label: 'Last Month' },
@@ -330,7 +321,7 @@ export const DashboardPage = () => {
 
       {/* Smart Business Insights Strip */}
       {insights.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
           {insights.map((ins, i) => (
             <div
               key={i}
@@ -502,7 +493,7 @@ export const DashboardPage = () => {
               <div className="empty-desc">No disbursements recorded for companies during this timeframe.</div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '1.5rem' }}>
+            <div className="dashboard-entity-grid">
               {/* Grouped Bar Chart of Entities */}
               <div style={{ minHeight: '260px', height: '260px' }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -669,7 +660,7 @@ export const DashboardPage = () => {
               <div className="empty-desc">No expense records categorized during this timeframe.</div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '1.25rem', alignItems: 'center' }}>
+            <div className="dashboard-donut-grid">
               <div style={{ height: '230px', width: '100%', position: 'relative' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>

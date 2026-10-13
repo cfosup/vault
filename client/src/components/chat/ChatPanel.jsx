@@ -201,7 +201,7 @@ export const ChatPanel = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
               {/* Expand / Minimize Toggle */}
               <button
-                className="btn btn-ghost btn-icon"
+                className="btn btn-ghost btn-icon chat-expand-btn"
                 onClick={() => setIsExpanded(!isExpanded)}
                 title={isExpanded ? 'Collapse Drawer' : 'Expand Drawer'}
                 style={{ padding: '0.35rem', color: 'var(--text-muted)' }}
