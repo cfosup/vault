@@ -15,6 +15,8 @@ type User {
   role: String!
   isEmailVerified: Boolean!
   lastLogin: String
+  avatarUrl: String
+  authProvider: String
   createdAt: String!
 }
 
@@ -32,6 +34,21 @@ input RegisterInput {
   orgName: String!
 }
 
+input FirebaseOAuthInput {
+  idToken: String
+  uid: String
+  email: String!
+  name: String
+  avatarUrl: String
+  orgName: String
+}
+
+type EmailResult {
+  success: Boolean!
+  message: String!
+  messageId: String
+}
+
 type Query {
   me: User!
 }
@@ -39,4 +56,6 @@ type Query {
 type Mutation {
   register(input: RegisterInput!): AuthPayload!
   login(email: String!, password: String!): AuthPayload!
+  firebaseOAuth(input: FirebaseOAuthInput!): AuthPayload!
+  sendTestEmail(email: String!): EmailResult!
 }

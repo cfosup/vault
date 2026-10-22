@@ -67,6 +67,36 @@ const expenseSchema = new mongoose.Schema(
       ref: 'BudgetBucket',
       default: null,
     },
+    incomeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Income',
+      default: null,
+      index: true,
+    },
+    incomeIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Income',
+      },
+    ],
+    incomeAllocations: [
+      {
+        incomeId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Income',
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+          min: [0, 'Allocation amount cannot be negative'],
+        },
+        companyId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Company',
+        },
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -88,6 +118,8 @@ const expenseSchema = new mongoose.Schema(
 );
 
 expenseSchema.index({ orgId: 1, companyId: 1, date: -1 });
+expenseSchema.index({ orgId: 1, companyId: 1, incomeId: 1 });
+expenseSchema.index({ 'incomeAllocations.incomeId': 1 });
 expenseSchema.index({ orgId: 1, isDeleted: 1 });
 
 export const Expense = mongoose.model('Expense', expenseSchema);

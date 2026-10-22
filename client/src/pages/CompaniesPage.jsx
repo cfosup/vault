@@ -19,6 +19,7 @@ import {
   Building,
   ArrowRight,
   Layers,
+  Save,
 } from 'lucide-react';
 import { GET_COMPANIES, GET_CATEGORIES } from '../graphql/queries';
 import {
@@ -49,6 +50,14 @@ export const CompaniesPage = () => {
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [newSectionLetter, setNewSectionLetter] = useState('');
   const [newSectionName, setNewSectionName] = useState('');
+  const [newSectionCatName, setNewSectionCatName] = useState('');
+  const [savingSection, setSavingSection] = useState(false);
+  const [chartSavedNotice, setChartSavedNotice] = useState('');
+
+  const triggerSavedNotice = (msg = 'Chart of Accounts saved successfully!') => {
+    setChartSavedNotice(msg);
+    setTimeout(() => setChartSavedNotice(''), 4500);
+  };
 
   const [showAddCatModal, setShowAddCatModal] = useState(false);
   const [targetSectionGroup, setTargetSectionGroup] = useState('');
@@ -213,8 +222,12 @@ export const CompaniesPage = () => {
 
   // Hierarchy Manager Handlers
   const handleOpenStructure = (company) => {
-    setStructureCompany(company);
-    setActiveSubcatInputCatId(null);
+    if (structureCompany?.id === company.id) {
+      setStructureCompany(null);
+    } else {
+      setStructureCompany(company);
+      setActiveSubcatInputCatId(null);
+    }
   };
 
   const promptApplyCoreBranchTemplate = () => {
@@ -229,6 +242,7 @@ export const CompaniesPage = () => {
         try {
           await resetToCore({ variables: { companyId: structureCompany.id } });
           refetchCompanyCategories();
+          triggerSavedNotice(`CORE BRIGHT 51 accounts applied and saved to ${structureCompany?.name}!`);
           setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
         } catch (err) {
           alert('Error applying template: ' + err.message);
@@ -238,19 +252,39 @@ export const CompaniesPage = () => {
     });
   };
 
-  const handleAddSectionSubmit = (e) => {
+  const handleAddSectionSubmit = async (e) => {
     e.preventDefault();
     if (!newSectionLetter.trim() || !newSectionName.trim()) return;
 
     const letter = newSectionLetter.trim().toUpperCase().charAt(0);
     const label = `${letter} — ${newSectionName.trim()}`;
+    const catName = newSectionCatName.trim() || `${newSectionName.trim()} General`;
 
-    setTargetSectionGroup(letter);
-    setTargetSectionLabel(label);
-    setShowAddSectionModal(false);
-    setNewCatName('');
-    setNewCatSubcat('');
-    setShowAddCatModal(true);
+    setSavingSection(true);
+    try {
+      await createCategory({
+        variables: {
+          input: {
+            companyId: structureCompany.id,
+            name: catName,
+            group: letter,
+            groupLabel: label,
+            subcategories: [],
+          },
+        },
+      });
+
+      setShowAddSectionModal(false);
+      setNewSectionLetter('');
+      setNewSectionName('');
+      setNewSectionCatName('');
+      refetchCompanyCategories();
+      triggerSavedNotice(`Section ${letter} and category "${catName}" saved to Chart of Accounts!`);
+    } catch (err) {
+      alert('Error saving section letter: ' + err.message);
+    } finally {
+      setSavingSection(false);
+    }
   };
 
   const handleOpenAddCategory = (group, label) => {
@@ -284,6 +318,7 @@ export const CompaniesPage = () => {
 
       setShowAddCatModal(false);
       refetchCompanyCategories();
+      triggerSavedNotice(`Category "${newCatName.trim()}" saved to Chart of Accounts!`);
     } catch (err) {
       alert('Error adding category: ' + err.message);
     }
@@ -300,6 +335,7 @@ export const CompaniesPage = () => {
         try {
           await deleteCategory({ variables: { id: categoryId } });
           refetchCompanyCategories();
+          triggerSavedNotice('Category removed and Chart of Accounts saved!');
           setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
         } catch (err) {
           alert('Error deleting category: ' + err.message);
@@ -325,6 +361,7 @@ export const CompaniesPage = () => {
             },
           });
           refetchCompanyCategories();
+          triggerSavedNotice('Section removed and Chart of Accounts saved!');
           setConfirmDialog((prev) => ({ ...prev, isOpen: false, loading: false }));
         } catch (err) {
           alert('Error deleting section: ' + err.message);
@@ -347,6 +384,7 @@ export const CompaniesPage = () => {
       setNewSubcatName('');
       setActiveSubcatInputCatId(null);
       refetchCompanyCategories();
+      triggerSavedNotice(`Subcategory "${newSubcatName.trim()}" saved!`);
     } catch (err) {
       alert('Error adding subcategory: ' + err.message);
     }
@@ -537,13 +575,53 @@ export const CompaniesPage = () => {
                 {resettingCore ? 'Applying...' : 'Apply CORE BRIGHT Pre-Seed (51 Accounts)'}
               </button>
               <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  refetchCompanyCategories();
+                  triggerSavedNotice('Chart of Accounts verified and saved!');
+                }}
+                title="Verify and save chart of accounts hierarchy"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Save size={14} style={{ color: 'var(--success)' }} />
+                Save Chart of Accounts
+              </button>
+              <button
                 className="btn btn-primary btn-sm"
                 onClick={() => setShowAddSectionModal(true)}
               >
-                <Plus size={14} /> + Add Section Letter
+                <Plus size={14} /> Add Section Letter
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setStructureCompany(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                title="Close Chart of Accounts"
+              >
+                <X size={14} /> Close
               </button>
             </div>
           </div>
+
+          {chartSavedNotice && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.65rem 0.95rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--success-bg)',
+                color: 'var(--success)',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                border: '1px solid color-mix(in srgb, var(--success) 30%, transparent)',
+              }}
+            >
+              <Check size={16} />
+              <span>{chartSavedNotice}</span>
+            </div>
+          )}
 
           {/* Grouped Sections List */}
           {groupedSections.length === 0 ? (
@@ -575,7 +653,9 @@ export const CompaniesPage = () => {
                       <span className={`section-pill section-pill-${sec.key}`} style={{ fontSize: '0.85rem', padding: '0.25rem 0.65rem' }}>
                         Section {sec.key}
                       </span>
-                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{sec.label}</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                        {sec.label?.startsWith(`${sec.key} — `) ? sec.label.slice(sec.key.length + 3) : sec.label}
+                      </span>
                       <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
                         {sec.categories.length} Categories
                       </span>
@@ -723,6 +803,38 @@ export const CompaniesPage = () => {
               ))}
             </div>
           )}
+
+          {/* Bottom Action Footer */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '0.65rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--border-color)',
+            }}
+          >
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                refetchCompanyCategories();
+                triggerSavedNotice('Chart of Accounts verified and saved!');
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Save size={14} style={{ color: 'var(--success)' }} />
+              Save Chart of Accounts
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setStructureCompany(null)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              title="Close Chart of Accounts"
+            >
+              <X size={14} /> Close Chart of Accounts
+            </button>
+          </div>
         </div>
       )}
 
@@ -873,7 +985,7 @@ export const CompaniesPage = () => {
             <form onSubmit={handleAddSectionSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Section Letter (Single Alphabet)</label>
+                  <label className="form-label">Section Letter (Single Alphabet) *</label>
                   <input
                     type="text"
                     className="input mono"
@@ -886,15 +998,34 @@ export const CompaniesPage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Section Title</label>
+                  <label className="form-label">Section Title *</label>
                   <input
                     type="text"
                     className="input"
                     placeholder="e.g. Special Ventures"
                     value={newSectionName}
-                    onChange={(e) => setNewSectionName(e.target.value)}
+                    onChange={(e) => {
+                      setNewSectionName(e.target.value);
+                      if (!newSectionCatName || newSectionCatName.endsWith(' General')) {
+                        setNewSectionCatName(e.target.value ? `${e.target.value} General` : '');
+                      }
+                    }}
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Initial Category Name (Optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. Operations General"
+                    value={newSectionCatName}
+                    onChange={(e) => setNewSectionCatName(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                    Creates and saves your first account category under this section letter immediately.
+                  </span>
                 </div>
               </div>
 
@@ -906,8 +1037,14 @@ export const CompaniesPage = () => {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary btn-sm">
-                  Proceed to Category
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={savingSection}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Save size={14} />
+                  {savingSection ? 'Saving...' : 'Save Section Letter'}
                 </button>
               </div>
             </form>

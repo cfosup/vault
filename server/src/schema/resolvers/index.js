@@ -9,6 +9,8 @@ import { dashboardResolvers } from './dashboardResolvers.js';
 import { chatResolvers } from './chatResolvers.js';
 
 export const resolvers = {
+  Expense: expenseResolvers.Expense,
+  Income: incomeResolvers.Income,
   Query: {
     ...authResolvers.Query,
     ...companyResolvers.Query,

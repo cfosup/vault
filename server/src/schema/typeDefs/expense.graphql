@@ -1,3 +1,16 @@
+type IncomeAllocation {
+  incomeId: ID!
+  amount: Float!
+  companyId: ID
+  income: Income
+}
+
+input IncomeAllocationInput {
+  incomeId: ID!
+  amount: Float!
+  companyId: ID
+}
+
 type Expense {
   id: ID!
   orgId: ID!
@@ -12,6 +25,11 @@ type Expense {
   paymentMethodName: String
   notes: String
   budgetBucketId: ID
+  incomeId: ID
+  incomeIds: [ID]
+  incomeAllocations: [IncomeAllocation!]
+  income: Income
+  incomes: [Income]
   createdBy: ID
   createdAt: String!
   updatedAt: String!
@@ -36,21 +54,27 @@ input ExpenseInput {
   paymentMethodName: String
   notes: String
   budgetBucketId: ID
+  incomeId: ID
+  incomeIds: [ID]
+  incomeAllocations: [IncomeAllocationInput!]
 }
 
 input ExpenseFilter {
   companyId: ID
   categoryId: ID
+  incomeId: ID
   startDate: String
   endDate: String
   search: String
   vendor: String
   paymentMethodId: ID
+  sortBy: String
 }
 
 extend type Query {
   expenses(filter: ExpenseFilter, page: Int, limit: Int): ExpensePage!
   expense(id: ID!): Expense!
+  expensesByIncome(incomeId: ID!): [Expense!]!
 }
 
 extend type Mutation {

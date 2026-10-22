@@ -22,3 +22,7 @@ services:
         value: openai/gpt-oss-120b
       - key: KEEP_ALIVE
         value: "true"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: Vault <onboarding@resend.dev>

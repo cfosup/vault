@@ -20,9 +20,14 @@ import {
   Smartphone,
   AlertTriangle,
   RotateCcw,
+  Mail,
+  Send,
+  Bell,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 import { GET_PAYMENT_METHODS } from '../graphql/queries';
-import { CREATE_PAYMENT_METHOD, DELETE_PAYMENT_METHOD } from '../graphql/mutations';
+import { CREATE_PAYMENT_METHOD, DELETE_PAYMENT_METHOD, SEND_TEST_EMAIL } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
@@ -40,6 +45,10 @@ export const SettingsPage = () => {
   // Database reset state
   const [resettingDb, setResettingDb] = useState(false);
   const [resetMsg, setResetMsg] = useState('');
+
+  // Resend Email Test state
+  const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [sendTestEmailMutation, { loading: sendingTestEmail }] = useMutation(SEND_TEST_EMAIL);
 
   const { data, loading, refetch } = useQuery(GET_PAYMENT_METHODS);
   const [createPaymentMethod, { loading: creating }] = useMutation(CREATE_PAYMENT_METHOD);
@@ -108,6 +117,46 @@ export const SettingsPage = () => {
       alert('Error deleting: ' + err.message);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSendTestEmail = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetEmail = user?.email;
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setTestEmailStatus({ success: false, message: 'No valid account email found for the logged-in user.' });
+      return;
+    }
+    setTestEmailStatus(null);
+    try {
+      const res = await sendTestEmailMutation({
+        variables: { email: targetEmail }
+      });
+      const result = res.data?.sendTestEmail;
+      if (result?.success) {
+        setTestEmailStatus({
+          success: true,
+          message: result.message || `Test notification email successfully sent to ${targetEmail}!`
+        });
+      } else {
+        const rawMsg = result?.message || 'Failed to dispatch email';
+        const formattedMsg = rawMsg.includes('own email address')
+          ? 'Notice: Resend default sandbox domain (onboarding@resend.dev) delivers to your account owner inbox. Add a verified custom domain at resend.com/domains to send to any address without restriction or spam filtering.'
+          : rawMsg;
+        setTestEmailStatus({
+          success: false,
+          message: formattedMsg
+        });
+      }
+    } catch (err) {
+      const rawMsg = err.message || 'Error sending email';
+      const formattedMsg = rawMsg.includes('own email address')
+        ? 'Notice: Resend default sandbox domain (onboarding@resend.dev) delivers to your account owner inbox. Add a verified custom domain at resend.com/domains to send to any address without restriction or spam filtering.'
+        : rawMsg;
+      setTestEmailStatus({
+        success: false,
+        message: formattedMsg
+      });
     }
   };
 
@@ -191,15 +240,9 @@ export const SettingsPage = () => {
               <strong>{org?.name || 'My Enterprise'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Workspace Slug</span>
-              <span className="mono" style={{ background: 'var(--bg-surface)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                {org?.slug || 'vault-hq'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Subscription Plan</span>
-              <span className="badge badge-success" style={{ textTransform: 'uppercase' }}>
-                {org?.plan || 'Free'} Tier
+              <span className="badge badge-primary" style={{ textTransform: 'uppercase', fontWeight: 600 }}>
+                Beta
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -579,6 +622,111 @@ export const SettingsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Customer Email & Communication Infrastructure (Resend) */}
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15))',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                color: '#a855f7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Mail size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Customer Alerts & Email (Resend)</h3>
+                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem' }}>
+                  <Check size={11} /> Connected
+                </span>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Powered by Resend API • Automatic customer onboarding, budget threshold warnings & disbursement alerts
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
+              <Sparkles size={14} style={{ color: 'var(--primary)' }} />
+              <span>Welcome & Onboarding</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+              Automatically sent to customers upon registration or Google OAuth sign-in with quick-start steps.
+            </p>
+          </div>
+
+          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
+              <Bell size={14} style={{ color: 'var(--warning)' }} />
+              <span>Budget Cap Alerts</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+              Dispatched automatically when any expense pushes category spending to 100% or above its budget limit.
+            </p>
+          </div>
+
+          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
+              <Send size={14} style={{ color: '#38bdf8' }} />
+              <span>Disbursement Notices</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+              Instant notifications whenever multi-income linked disbursements or material expenses occur.
+            </p>
+          </div>
+        </div>
+
+        {/* Simple Notification Test to Logged-in User */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Notification Recipient:</span>
+            <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>{user?.email || 'Logged-in Account'}</strong>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleSendTestEmail}
+            disabled={sendingTestEmail}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0 1.15rem' }}
+          >
+            <Send size={14} />
+            {sendingTestEmail ? 'Sending...' : 'Send Test Notification'}
+          </button>
+        </div>
+
+          {testEmailStatus && (
+            <div
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.825rem',
+                background: testEmailStatus.success ? 'var(--success-bg)' : 'var(--danger-bg)',
+                color: testEmailStatus.success ? 'var(--success)' : 'var(--danger)',
+                border: `1px solid ${testEmailStatus.success ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'color-mix(in srgb, var(--danger) 30%, transparent)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              {testEmailStatus.success ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
+              <span>{testEmailStatus.message}</span>
+            </div>
+          )}
+        </div>
 
       {/* Danger Zone: Developer Reset (Local Development Only) */}
       {import.meta.env.DEV && (

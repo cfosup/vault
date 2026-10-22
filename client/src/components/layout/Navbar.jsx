@@ -60,9 +60,6 @@ export const Navbar = () => {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                 <span>Vault</span>
-                <span className="badge badge-primary" style={{ fontSize: '0.62rem', padding: '0.08rem 0.45rem' }}>
-                  PRO
-                </span>
               </div>
             </div>
           </NavLink>
@@ -99,7 +96,7 @@ export const Navbar = () => {
                   <option value="">All Entities (Consolidated)</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                      {c.name}
                     </option>
                   ))}
                 </select>
@@ -273,7 +270,7 @@ export const Navbar = () => {
               <option value="">All Entities (Consolidated)</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                  {c.name}
                 </option>
               ))}
             </select>

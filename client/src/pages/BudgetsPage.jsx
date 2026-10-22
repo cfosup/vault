@@ -505,7 +505,7 @@ export const BudgetsPage = () => {
                     <option value="">Select Company</option>
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                        {c.name}
                       </option>
                     ))}
                   </select>

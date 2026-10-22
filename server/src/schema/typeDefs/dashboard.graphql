@@ -65,4 +65,35 @@ extend type Query {
   topVendors(filter: DashFilter, limit: Int): [VendorStat!]!
   paymentMethodBreakdown(filter: DashFilter): [PaymentMethodStat!]!
   companySpendBreakdown(filter: DashFilter): [CompanySpendStat!]!
+  companyIncomeUsage(companyId: ID!): CompanyIncomeUsageReport!
+  allCompaniesIncomeUsage: [CompanyIncomeUsageReport!]!
+}
+
+type IncomeUsageItem {
+  id: ID!
+  companyId: ID!
+  source: String!
+  date: String!
+  amount: Float!
+  notes: String
+  totalUtilized: Float!
+  remainingBalance: Float!
+  excessSpending: Float!
+  utilizationPercentage: Float!
+  linkedExpenses: [Expense!]!
+  linkedExpenseCount: Int!
+}
+
+type CompanyIncomeUsageReport {
+  companyId: ID!
+  companyName: String!
+  totalIncome: Float!
+  totalUtilized: Float!
+  remainingBalance: Float!
+  totalExcessSpending: Float!
+  utilizationPercentage: Float!
+  incomeEntries: [IncomeUsageItem!]!
+  incomeCount: Int!
+  unlinkedExpensesTotal: Float!
+  unlinkedExpenseCount: Int!
 }

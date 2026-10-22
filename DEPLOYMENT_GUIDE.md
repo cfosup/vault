@@ -79,6 +79,8 @@ This guide covers deploying **Vault** to production with **Vercel** for the fron
 | `GROQ_MODEL` | `openai/gpt-oss-120b` | Groq AI LLM model |
 | `KEEP_ALIVE` | `true` | Enables built-in self-pinging |
 | `RENDER_EXTERNAL_URL` | `https://vault-api.onrender.com` | Your Render public service URL |
+| `RESEND_API_KEY` | `re_your_resend_api_key` | Resend API Key for customer emails |
+| `RESEND_FROM_EMAIL` | `Vault <onboarding@resend.dev>` | From address (or your verified domain) |
 
 7. Click **Create Web Service**. Wait for the build and deployment to finish.
 8. Verify by visiting `https://your-api.onrender.com/health` in your browser. It should return:
@@ -129,10 +131,27 @@ You can also use [cron-job.org](https://cron-job.org) or [UptimeRobot](https://u
 |---|---|---|
 | `VITE_GRAPHQL_URL` | `https://your-api.onrender.com/graphql` | Render backend GraphQL URL |
 | `VITE_API_URL` | `https://your-api.onrender.com` | Render backend base URL (for exports & reset) |
+| `VITE_FIREBASE_API_KEY` | `AIzaSyCowHwDuVindWDNXCQybBnD-WQWauQL-Ug` | Firebase API Key |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `vault-cbf53.firebaseapp.com` | Firebase Auth Domain |
+| `VITE_FIREBASE_PROJECT_ID` | `vault-cbf53` | Firebase Project ID |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `vault-cbf53.firebasestorage.app` | Firebase Storage Bucket |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `159985238588` | Firebase Messaging Sender ID |
+| `VITE_FIREBASE_APP_ID` | `1:159985238588:web:fe413048a0ce5d7077b939` | Firebase Web App ID |
+| `VITE_FIREBASE_MEASUREMENT_ID` | `G-RQY54PDHEP` | Firebase Measurement ID |
+
+*(Note: Do NOT put `RESEND_API_KEY` on Vercel. Private email keys belong securely on the backend in Render).*
 
 6. Click **Deploy**.
 7. Vercel will build and deploy the React application.
 8. The included [`client/vercel.json`](file:///client/vercel.json) rewrites all client-side routes (e.g. `/expenses`, `/login`, `/companies`) to `/index.html` to eliminate 404s on browser refresh.
+
+### Step 4b: Authorize Vercel Domain in Firebase Console (Mandatory for Google OAuth)
+Once Vercel generates your production domain (e.g., `https://your-app.vercel.app`):
+1. Go to [Firebase Console](https://console.firebase.google.com/project/vault-cbf53/authentication/settings).
+2. Click **Authentication** -> **Settings** tab.
+3. Scroll to **Authorized domains**.
+4. Click **Add domain** and enter your Vercel domain (e.g., `your-app.vercel.app`).
+5. Save. This allows Google OAuth popups to succeed from your live production URL without `auth/unauthorized-domain` errors!
 
 ---
 

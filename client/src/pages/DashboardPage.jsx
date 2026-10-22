@@ -18,6 +18,9 @@ import {
   AlertCircle,
   FileSpreadsheet,
   Zap,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
 } from 'lucide-react';
 import {
   PieChart,
@@ -35,6 +38,7 @@ import {
   Legend,
 } from 'recharts';
 import { useAuthStore } from '../store/authStore';
+import { formatDisplayDate } from '../utils/dateUtils';
 import {
   GET_DASHBOARD_SUMMARY,
   GET_CATEGORY_BREAKDOWN,
@@ -45,6 +49,7 @@ import {
   GET_EXPENSES,
   GET_COMPANIES,
   GET_COMPANY_SPEND_BREAKDOWN,
+  GET_COMPANY_INCOME_USAGE,
 } from '../graphql/queries';
 
 // Generic corporate data visualization palette (standard finance, no neon AI violet/fuchsia)
@@ -61,8 +66,499 @@ const CATEGORY_COLORS = [
   '#64748b', // Steel Gray
 ];
 
+// Section Component for Company Income Usage & Expense Linking Breakdown
+const CompanyIncomeUsageSection = ({ companies, initialCompanyId }) => {
+  const [selectedCompanyId, setSelectedCompanyId] = useState(
+    initialCompanyId || companies[0]?.id || ''
+  );
+  const [expandedEntryId, setExpandedEntryId] = useState(null);
+
+  React.useEffect(() => {
+    if (initialCompanyId && !selectedCompanyId) {
+      setSelectedCompanyId(initialCompanyId);
+    }
+  }, [initialCompanyId, selectedCompanyId]);
+
+  const { data, loading, error, refetch } = useQuery(GET_COMPANY_INCOME_USAGE, {
+    variables: { companyId: selectedCompanyId },
+    skip: !selectedCompanyId,
+    fetchPolicy: 'cache-and-network',
+  });
+
+  const report = data?.companyIncomeUsage;
+
+  const toggleExpand = (entryId) => {
+    setExpandedEntryId((prev) => (prev === entryId ? null : entryId));
+  };
+
+  if (companies.length === 0) {
+    return (
+      <div className="card" style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+        <div className="empty-state">
+          <div className="empty-icon"><Building2 size={24} /></div>
+          <div className="empty-title">No companies found</div>
+          <div className="empty-desc">Create a corporate branch or entity to track income usage.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* Control Bar: Company Selector & Refresh */}
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          padding: '1rem 1.25rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+            Select Entity:
+          </span>
+          <select
+            className="select"
+            value={selectedCompanyId}
+            onChange={(e) => {
+              setSelectedCompanyId(e.target.value);
+              setExpandedEntryId(null);
+            }}
+            style={{ minWidth: '220px', fontWeight: 600 }}
+          >
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {report && (
+            <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+              {report.companyName}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => refetch()}
+            disabled={loading}
+            title="Refresh Income Usage"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {loading && !report ? (
+        <div className="card" style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.75rem auto' }} />
+          <div>Loading Company Income Usage metrics...</div>
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: '2rem', borderLeft: '4px solid var(--danger)', color: 'var(--danger)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
+            <AlertCircle size={18} /> Error Loading Income Usage Data
+          </div>
+          <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>{error.message}</div>
+        </div>
+      ) : report ? (
+        <>
+          {/* Company-Level Overview KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            {/* Card 1: Total Income */}
+            <div className="card glass-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Total Income Received
+                </span>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--success-bg)',
+                    color: 'var(--success)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Wallet size={16} />
+                </div>
+              </div>
+              <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                ₹{Number(report.totalIncome).toLocaleString('en-IN')}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                {report.incomeCount} revenue entries recorded
+              </div>
+            </div>
+
+            {/* Card 2: Total Utilized */}
+            <div className="card glass-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Total Amount Utilized
+                </span>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Receipt size={16} />
+                </div>
+              </div>
+              <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)' }}>
+                ₹{Number(report.totalUtilized).toLocaleString('en-IN')}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                {report.utilizationPercentage.toFixed(1)}% of total received income
+              </div>
+            </div>
+
+            {/* Card 3: Remaining Balance */}
+            <div className="card glass-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Remaining Balance
+                </span>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--success-bg)',
+                    color: 'var(--success)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                </div>
+              </div>
+              <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success)' }}>
+                ₹{Number(report.remainingBalance).toLocaleString('en-IN')}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                MAX(Income − Utilized, 0)
+              </div>
+            </div>
+
+            {/* Card 4: Total Excess Spending */}
+            <div className="card glass-card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Total Excess Spending
+                </span>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: report.totalExcessSpending > 0 ? 'var(--danger-bg)' : 'var(--bg-surface)',
+                    color: report.totalExcessSpending > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AlertCircle size={16} />
+                </div>
+              </div>
+              <div
+                className="mono"
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 800,
+                  color: report.totalExcessSpending > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                }}
+              >
+                ₹{Number(report.totalExcessSpending).toLocaleString('en-IN')}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                {report.totalExcessSpending > 0 ? 'Disbursements exceed allocated income' : 'No excess spending'}
+              </div>
+            </div>
+          </div>
+
+          {/* Unlinked Disbursements Context Banner */}
+          {report.unlinkedExpenseCount > 0 && (
+            <div
+              className="card"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                padding: '0.85rem 1.15rem',
+                borderLeft: '4px solid var(--border-color)',
+                background: 'var(--bg-surface)',
+                fontSize: '0.825rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Info size={16} style={{ color: 'var(--text-muted)' }} />
+                <span>
+                  <strong>{report.unlinkedExpenseCount} unlinked disbursement(s)</strong> totaling{' '}
+                  <strong className="mono">₹{Number(report.unlinkedExpensesTotal).toLocaleString('en-IN')}</strong> exist for this company. Unlinked expenses are isolated and do not count against income entries.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Income-Entry-Level Breakdown Table */}
+          <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
+                  Income Entry Breakdown
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Detailed utilization, balances, and linked disbursements for {report.companyName}
+                </span>
+              </div>
+              <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
+                {report.incomeEntries.length} Income Entries
+              </span>
+            </div>
+
+            {report.incomeEntries.length === 0 ? (
+              <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div className="empty-state">
+                  <div className="empty-icon"><Wallet size={24} /></div>
+                  <div className="empty-title">No income entries recorded</div>
+                  <div className="empty-desc">Record income for this company in the Income page to begin tracking utilization.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th>Income Name / Source</th>
+                      <th>Date</th>
+                      <th>Original Amount</th>
+                      <th>Total Utilized</th>
+                      <th>Remaining Balance</th>
+                      <th>Excess Spending</th>
+                      <th>Utilization %</th>
+                      <th style={{ textAlign: 'right' }}>Linked Expenses</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.incomeEntries.map((entry) => {
+                      const isExpanded = expandedEntryId === entry.id;
+                      const hasLinked = entry.linkedExpenses && entry.linkedExpenses.length > 0;
+
+                      return (
+                        <React.Fragment key={entry.id}>
+                          <tr>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.875rem' }}>
+                                  {entry.source}
+                                </span>
+                                {entry.notes && (
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    {entry.notes}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="mono" style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                              {formatDisplayDate(entry.date)}
+                            </td>
+                            <td>
+                              <span className="mono" style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9rem' }}>
+                                ₹{Number(entry.amount).toLocaleString('en-IN')}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="mono" style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>
+                                ₹{Number(entry.totalUtilized).toLocaleString('en-IN')}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="mono" style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.9rem' }}>
+                                ₹{Number(entry.remainingBalance).toLocaleString('en-IN')}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                className="mono"
+                                style={{
+                                  fontWeight: 700,
+                                  color: entry.excessSpending > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                                  fontSize: '0.9rem',
+                                }}
+                              >
+                                {entry.excessSpending > 0
+                                  ? `₹${Number(entry.excessSpending).toLocaleString('en-IN')}`
+                                  : '₹0'}
+                              </span>
+                            </td>
+                            <td style={{ minWidth: '120px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span
+                                  className="mono"
+                                  style={{
+                                    fontSize: '0.825rem',
+                                    fontWeight: 700,
+                                    color:
+                                      entry.utilizationPercentage > 100
+                                        ? 'var(--danger)'
+                                        : entry.utilizationPercentage > 80
+                                        ? '#d97706'
+                                        : 'var(--success)',
+                                  }}
+                                >
+                                  {entry.utilizationPercentage.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  width: '100%',
+                                  height: '6px',
+                                  background: 'var(--bg-surface)',
+                                  borderRadius: 'var(--radius-full)',
+                                  overflow: 'hidden',
+                                  marginTop: '4px',
+                                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${Math.min(entry.utilizationPercentage, 100)}%`,
+                                    height: '100%',
+                                    background:
+                                      entry.utilizationPercentage > 100
+                                        ? 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)'
+                                        : entry.utilizationPercentage > 80
+                                        ? 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)'
+                                        : 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                                    borderRadius: 'var(--radius-full)',
+                                    transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                                    boxShadow: '0 0 4px rgba(0,0,0,0.15)',
+                                  }}
+                                />
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => toggleExpand(entry.id)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+                              >
+                                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                {entry.linkedExpenseCount} Expense(s)
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Associated Expenses Sub-Table */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan="8" style={{ padding: '0.75rem 1rem', background: 'var(--bg-surface)' }}>
+                                <div
+                                  style={{
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius)',
+                                    padding: '0.85rem',
+                                    background: 'var(--bg-card)',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                      Expenses Linked to "{entry.source}" ({entry.linkedExpenseCount})
+                                    </span>
+                                    <span className="mono" style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                      Total Outlaid: ₹{Number(entry.totalUtilized).toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+
+                                  {!hasLinked ? (
+                                    <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                      No expenses are currently linked to this income entry. To link an expense, choose this entry in the "Linked Revenue" selector on the Expenses page.
+                                    </div>
+                                  ) : (
+                                    <table className="table" style={{ fontSize: '0.8rem', width: '100%' }}>
+                                      <thead>
+                                        <tr>
+                                          <th>Date</th>
+                                          <th>Payee / Vendor</th>
+                                          <th>Category</th>
+                                          <th>Subcategory</th>
+                                          <th>Notes</th>
+                                          <th style={{ textAlign: 'right' }}>Amount</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {entry.linkedExpenses.map((exp) => (
+                                          <tr key={exp.id}>
+                                            <td className="mono" style={{ color: 'var(--text-muted)' }}>
+                                              {formatDisplayDate(exp.date)}
+                                            </td>
+                                            <td style={{ fontWeight: 600 }}>{exp.vendor || '—'}</td>
+                                            <td>{exp.categoryName}</td>
+                                            <td>
+                                              {exp.subcategory ? (
+                                                <span className="badge badge-neutral" style={{ fontSize: '0.68rem' }}>
+                                                  {exp.subcategory}
+                                                </span>
+                                              ) : (
+                                                '—'
+                                              )}
+                                            </td>
+                                            <td style={{ color: 'var(--text-muted)' }}>{exp.notes || '—'}</td>
+                                            <td style={{ textAlign: 'right' }}>
+                                              <span className="mono" style={{ fontWeight: 700, color: 'var(--danger)' }}>
+                                                -₹{Number(exp.amount).toLocaleString('en-IN')}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
 export const DashboardPage = () => {
   const { activeCompanyId, setActiveCompanyId, token, user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'income_usage'
   const [datePreset, setDatePreset] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -319,7 +815,31 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Smart Business Insights Strip */}
+      {/* Dashboard Section Switcher */}
+      <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+        <button
+          type="button"
+          className={`btn ${activeTab === 'overview' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('overview')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, fontSize: '0.85rem' }}
+        >
+          <Layers size={15} /> Executive Overview
+        </button>
+        <button
+          type="button"
+          className={`btn ${activeTab === 'income_usage' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('income_usage')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, fontSize: '0.85rem' }}
+        >
+          <TrendingUp size={15} /> Company Income Usage
+        </button>
+      </div>
+
+      {activeTab === 'income_usage' ? (
+        <CompanyIncomeUsageSection companies={companies} initialCompanyId={activeCompanyId} />
+      ) : (
+        <>
+          {/* Smart Business Insights Strip */}
       {insights.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
           {insights.map((ins, i) => (
@@ -554,11 +1074,6 @@ export const DashboardPage = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.875rem' }}>{comp.companyName}</span>
-                          {isCore && (
-                            <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem' }}>
-                              Core
-                            </span>
-                          )}
                         </div>
                         <span className={`badge ${comp.netBalance >= 0 ? 'badge-success' : 'badge-danger'}`}>
                           Net: {comp.netBalance >= 0 ? '+' : ''}₹{comp.netBalance.toLocaleString('en-IN')}
@@ -854,7 +1369,7 @@ export const DashboardPage = () => {
                       -₹{tx.amount.toLocaleString('en-IN')}
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                      {new Date(tx.date).toLocaleDateString()}
+                      {formatDisplayDate(tx.date)}
                     </span>
                   </div>
                 </div>
@@ -863,6 +1378,8 @@ export const DashboardPage = () => {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

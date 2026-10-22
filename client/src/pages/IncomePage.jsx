@@ -19,6 +19,7 @@ import { GET_INCOMES, GET_COMPANIES } from '../graphql/queries';
 import { CREATE_INCOMES, DELETE_INCOME } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 export const IncomePage = () => {
   const { activeCompanyId, token } = useAuthStore();
@@ -399,7 +400,7 @@ export const IncomePage = () => {
                     <option value="">Select Company</option>
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.isCoreBranch ? '★ Core' : ''}
+                        {c.name}
                       </option>
                     ))}
                   </select>
@@ -620,16 +621,11 @@ export const IncomePage = () => {
                 return (
                   <tr key={inc.id}>
                     <td className="mono" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                      {new Date(inc.date).toLocaleDateString()}
+                      {formatDisplayDate(inc.date)}
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{comp?.name || '—'}</span>
-                        {comp?.isCoreBranch && (
-                          <span className="badge badge-success" style={{ fontSize: '0.62rem', padding: '0.05rem 0.35rem' }}>
-                            Core
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td>

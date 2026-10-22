@@ -1,3 +1,4 @@
+import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
 import { Expense, Income, Company } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -359,7 +360,139 @@ export const dashboardResolvers = {
         .sort((a, b) => b.expenses - a.expenses);
     },
 
+    companyIncomeUsage: async (_, { companyId }, context) => {
+      requireAuth(context);
+      return calculateCompanyIncomeUsage(context.orgId, companyId);
+    },
+
+    allCompaniesIncomeUsage: async (_, __, context) => {
+      requireAuth(context);
+      const orgObjectId = new mongoose.Types.ObjectId(context.orgId);
+      const companies = await Company.find({ orgId: orgObjectId }).sort({ name: 1 });
+
+      const reports = await Promise.all(
+        companies.map((c) => calculateCompanyIncomeUsage(context.orgId, c._id.toString()))
+      );
+      return reports;
+    },
   },
+};
+
+export const calculateCompanyIncomeUsage = async (orgId, companyId) => {
+  const orgObjectId = new mongoose.Types.ObjectId(orgId);
+  const compObjectId = new mongoose.Types.ObjectId(companyId);
+
+  const company = await Company.findOne({ _id: compObjectId, orgId: orgObjectId });
+  if (!company) {
+    throw new GraphQLError('Company not found', {
+      extensions: { code: 'NOT_FOUND', http: { status: 404 } },
+    });
+  }
+
+  // 1. Fetch all non-deleted income entries for this company
+  const incomes = await Income.find({
+    orgId: orgObjectId,
+    companyId: compObjectId,
+    isDeleted: { $ne: true },
+  }).sort({ date: -1, createdAt: -1 });
+
+  // 2. Fetch all non-deleted expenses for this company or linked to this company's incomes
+  const incomeIds = incomes.map((i) => i._id);
+  const expenses = await Expense.find({
+    orgId: orgObjectId,
+    $or: [
+      { companyId: compObjectId },
+      { incomeId: { $in: incomeIds } },
+      { incomeIds: { $in: incomeIds } },
+    ],
+    isDeleted: { $ne: true },
+  }).sort({ date: -1, createdAt: -1 });
+
+  // 3. Map expenses by incomeId
+  const expensesByIncomeId = new Map();
+  let unlinkedExpensesTotal = 0;
+  let unlinkedExpenseCount = 0;
+
+  for (const exp of expenses) {
+    const linkedIds = (
+      exp.incomeIds && exp.incomeIds.length > 0
+        ? exp.incomeIds
+        : exp.incomeId
+        ? [exp.incomeId]
+        : []
+    ).map((id) => id.toString());
+
+    if (linkedIds.length > 0) {
+      for (const id of linkedIds) {
+        if (!expensesByIncomeId.has(id)) {
+          expensesByIncomeId.set(id, []);
+        }
+        expensesByIncomeId.get(id).push(exp);
+      }
+    } else if (exp.companyId.toString() === compObjectId.toString()) {
+      unlinkedExpensesTotal += exp.amount;
+      unlinkedExpenseCount += 1;
+    }
+  }
+
+  // 4. Calculate for each individual income entry
+  let totalCompanyIncome = 0;
+  let totalCompanyLinkedUtilized = 0;
+
+  const incomeEntries = incomes.map((inc) => {
+    const incKey = inc._id.toString();
+    const linked = expensesByIncomeId.get(incKey) || [];
+    const totalUtilized = linked.reduce((sum, e) => {
+      if (Array.isArray(e.incomeAllocations) && e.incomeAllocations.length > 0) {
+        const alloc = e.incomeAllocations.find((a) => a.incomeId && a.incomeId.toString() === incKey);
+        if (alloc && typeof alloc.amount === 'number') {
+          return sum + alloc.amount;
+        }
+      }
+      return sum + e.amount;
+    }, 0);
+    const remainingBalance = Math.max(inc.amount - totalUtilized, 0);
+    const excessSpending = Math.max(totalUtilized - inc.amount, 0);
+    const utilizationPercentage = inc.amount > 0 ? Number(((totalUtilized / inc.amount) * 100).toFixed(2)) : 0;
+
+    totalCompanyIncome += inc.amount;
+    totalCompanyLinkedUtilized += totalUtilized;
+
+    return {
+      id: inc._id.toString(),
+      companyId: companyId.toString(),
+      source: inc.source,
+      date: inc.date ? inc.date.toISOString() : new Date().toISOString(),
+      amount: inc.amount,
+      notes: inc.notes || '',
+      totalUtilized,
+      remainingBalance,
+      excessSpending,
+      utilizationPercentage,
+      linkedExpenses: linked,
+      linkedExpenseCount: linked.length,
+    };
+  });
+
+  const totalExcessSpending = Math.max(totalCompanyLinkedUtilized - totalCompanyIncome, 0);
+  const remainingBalance = Math.max(totalCompanyIncome - totalCompanyLinkedUtilized, 0);
+  const companyUtilizationPercentage = totalCompanyIncome > 0
+    ? Number(((totalCompanyLinkedUtilized / totalCompanyIncome) * 100).toFixed(2))
+    : 0;
+
+  return {
+    companyId: companyId.toString(),
+    companyName: company.name,
+    totalIncome: totalCompanyIncome,
+    totalUtilized: totalCompanyLinkedUtilized,
+    remainingBalance,
+    totalExcessSpending,
+    utilizationPercentage: companyUtilizationPercentage,
+    incomeEntries,
+    incomeCount: incomes.length,
+    unlinkedExpensesTotal,
+    unlinkedExpenseCount,
+  };
 };
 
 export default dashboardResolvers;

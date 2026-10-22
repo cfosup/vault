@@ -45,6 +45,41 @@ export const LOGIN = gql`
   }
 `;
 
+export const FIREBASE_OAUTH = gql`
+  mutation FirebaseOAuth($input: FirebaseOAuthInput!) {
+    firebaseOAuth(input: $input) {
+      token
+      message
+      user {
+        id
+        orgId
+        name
+        email
+        role
+        avatarUrl
+        authProvider
+        isEmailVerified
+      }
+      org {
+        id
+        name
+        slug
+        plan
+      }
+    }
+  }
+`;
+
+export const SEND_TEST_EMAIL = gql`
+  mutation SendTestEmail($email: String!) {
+    sendTestEmail(email: $email) {
+      success
+      message
+      messageId
+    }
+  }
+`;
+
 export const CREATE_COMPANY = gql`
   mutation CreateCompany($input: CompanyInput!) {
     createCompany(input: $input) {
@@ -178,6 +213,24 @@ export const CREATE_EXPENSES = gql`
       amount
       vendor
       notes
+      incomeId
+      incomeIds
+      incomeAllocations {
+        incomeId
+        amount
+        companyId
+      }
+      income {
+        id
+        source
+        amount
+      }
+      incomes {
+        id
+        source
+        amount
+        companyId
+      }
     }
   }
 `;
@@ -189,6 +242,24 @@ export const UPDATE_EXPENSE = gql`
       amount
       vendor
       notes
+      incomeId
+      incomeIds
+      incomeAllocations {
+        incomeId
+        amount
+        companyId
+      }
+      income {
+        id
+        source
+        amount
+      }
+      incomes {
+        id
+        source
+        amount
+        companyId
+      }
     }
   }
 `;

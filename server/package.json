@@ -8,12 +8,14 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "clear-db": "node scripts/clearDb.js",
+    "test": "npm run test:all",
     "test:phase1": "node tests/phase1.test.js",
     "test:phase2": "node tests/phase2.test.js",
     "test:phase3": "node tests/phase3.test.js",
     "test:phase4": "node tests/phase4.test.js",
     "test:enhancements": "node tests/phase1_enhancements.test.js",
-    "test:all": "node tests/phase1.test.js && node tests/phase2.test.js && node tests/phase3.test.js && node tests/phase4.test.js && node tests/phase1_enhancements.test.js"
+    "test:phase5": "node tests/phase5_income_linking_usage.test.js",
+    "test:all": "node tests/phase1.test.js && node tests/phase2.test.js && node tests/phase3.test.js && node tests/phase4.test.js && node tests/phase1_enhancements.test.js && node tests/phase5_income_linking_usage.test.js"
   },
   "dependencies": {
     "@apollo/server": "^4.10.0",
@@ -30,6 +32,7 @@
     "langchain": "^0.2.0",
     "mongoose": "^8.3.0",
     "nodemailer": "^10.0.10",
+    "resend": "^6.34.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -1,0 +1,14 @@
+{
+  "name": "expenceflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ExpenseFlow - SaaS Multi-Company Financial Management & Expense-Income Linking",
+  "scripts": {
+    "dev": "node run-dev.js",
+    "start": "node run-dev.js",
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "test": "npm --prefix server test"
+  }
+}

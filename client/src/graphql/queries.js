@@ -74,6 +74,24 @@ export const GET_EXPENSES = gql`
         paymentMethodId
         paymentMethodName
         notes
+        incomeId
+        incomeIds
+        incomeAllocations {
+          incomeId
+          amount
+          companyId
+        }
+        income {
+          id
+          source
+          amount
+        }
+        incomes {
+          id
+          companyId
+          source
+          amount
+        }
         createdAt
       }
       totalCount
@@ -251,3 +269,88 @@ export const GET_CHAT_SESSION = gql`
     }
   }
 `;
+
+export const GET_COMPANY_INCOME_USAGE = gql`
+  query GetCompanyIncomeUsage($companyId: ID!) {
+    companyIncomeUsage(companyId: $companyId) {
+      companyId
+      companyName
+      totalIncome
+      totalUtilized
+      remainingBalance
+      totalExcessSpending
+      utilizationPercentage
+      unlinkedExpensesTotal
+      unlinkedExpenseCount
+      incomeCount
+      incomeEntries {
+        id
+        companyId
+        source
+        date
+        amount
+        notes
+        totalUtilized
+        remainingBalance
+        excessSpending
+        utilizationPercentage
+        linkedExpenseCount
+        linkedExpenses {
+          id
+          companyId
+          date
+          categoryName
+          subcategory
+          amount
+          vendor
+          notes
+        }
+      }
+    }
+  }
+`;
+
+export const GET_ALL_COMPANIES_INCOME_USAGE = gql`
+  query GetAllCompaniesIncomeUsage {
+    allCompaniesIncomeUsage {
+      companyId
+      companyName
+      totalIncome
+      totalUtilized
+      remainingBalance
+      totalExcessSpending
+      utilizationPercentage
+      unlinkedExpensesTotal
+      unlinkedExpenseCount
+      incomeCount
+      incomeEntries {
+        id
+        source
+        date
+        amount
+        totalUtilized
+        remainingBalance
+        excessSpending
+        utilizationPercentage
+        linkedExpenseCount
+      }
+    }
+  }
+`;
+
+export const GET_EXPENSES_BY_INCOME = gql`
+  query GetExpensesByIncome($incomeId: ID!) {
+    expensesByIncome(incomeId: $incomeId) {
+      id
+      companyId
+      date
+      categoryName
+      subcategory
+      amount
+      vendor
+      notes
+      paymentMethodName
+    }
+  }
+`;
+

@@ -23,7 +23,22 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: [true, 'Password hash is required'],
+      required: false,
+      default: null,
+    },
+    firebaseUid: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google', 'firebase'],
+      default: 'local',
+    },
+    avatarUrl: {
+      type: String,
+      default: null,
     },
     role: {
       type: String,

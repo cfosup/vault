@@ -97,7 +97,7 @@ export const CategorySelect = ({
         <optgroup key={group.key} label={`Section ${group.label}`}>
           {group.items.map((cat) => (
             <option key={cat.id} value={cat.id}>
-              {group.key} — {cat.name}
+              {cat.name}
             </option>
           ))}
         </optgroup>
