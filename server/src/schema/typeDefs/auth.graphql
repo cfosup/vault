@@ -51,6 +51,7 @@ type EmailResult {
 
 type Query {
   me: User!
+  checkEmailExists(email: String!): Boolean!
 }
 
 type Mutation {

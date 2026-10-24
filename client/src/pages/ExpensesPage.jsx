@@ -485,8 +485,12 @@ export const ExpensesPage = () => {
 
   const handleRowCompanyIncomeChange = (index, newCompanyId, newIncomeId, newIncomeIds) => {
     const updated = [...rows];
-    const compChanged = updated[index].companyId !== newCompanyId;
-    updated[index].companyId = newCompanyId;
+    let compChanged = false;
+    // Only set companyId if the row doesn't have a company selected yet
+    if (!updated[index].companyId && newCompanyId) {
+      updated[index].companyId = newCompanyId;
+      compChanged = true;
+    }
     const finalIds = newIncomeIds || (newIncomeId ? [newIncomeId] : []);
     updated[index].incomeId = newIncomeId || (finalIds.length > 0 ? finalIds[0] : '');
     updated[index].incomeIds = finalIds;
@@ -1181,7 +1185,8 @@ export const ExpensesPage = () => {
                     variant="full"
                     placeholder="— None (Unlinked Expense) —"
                     onChange={({ companyId, incomeId, incomeIds }) => {
-                      if (companyId) {
+                      // Only set quickCompanyId if not already chosen by user
+                      if (!quickCompanyId && companyId) {
                         setQuickCompanyId(companyId);
                         loadCategoriesForCompany(companyId);
                       }

@@ -12,7 +12,7 @@ export const chatResolvers = {
   },
 
   Mutation: {
-    sendChatMessage: async (_, { sessionId, message }, context) => {
+    sendChatMessage: async (_, { sessionId, message, activeCompanyId }, context) => {
       requireAuth(context);
 
       if (!sessionId || !message || !message.trim()) {
@@ -38,13 +38,14 @@ export const chatResolvers = {
       };
       session.messages.push(userMsg);
 
-      // Call AI Chat Service with conversational history and live org financial context
+      // Call AI Chat Service with conversational history, active company context, and live org financials
       const replyContent = await generateChatReply(
         context.orgId,
         context.userId,
         sessionId,
         message.trim(),
-        session.messages
+        session.messages,
+        activeCompanyId
       );
 
       const assistantMsg = {

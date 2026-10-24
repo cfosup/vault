@@ -147,10 +147,10 @@ async function runPhase5Test() {
     // 4. Test Expense-Income Linking & Validation
     console.log('\n[Step 4] Testing Expense-Income Linking & Security Validation...');
 
-    // 4a. Cross-company linking rejection: Try creating an expense for Company 1 linked to Company 2's income
+    // 4a. Cross-company linking support: Verify creating an expense for Company 1 linked to Company 2's income succeeds
     const crossCompRes = await gql(`
       mutation CreateCrossCompExpense($inputs: [ExpenseInput!]!) {
-        createExpenses(inputs: $inputs) { id }
+        createExpenses(inputs: $inputs) { id companyId incomeId }
       }
     `, {
       inputs: [
@@ -165,9 +165,14 @@ async function runPhase5Test() {
     }, tokenA);
 
     assert(
-      !!crossCompRes.errors && crossCompRes.errors.length > 0,
-      'Blocked cross-company income linking attempt (Expense Company 1 with Income Company 2)'
+      !crossCompRes.errors && crossCompRes.data?.createExpenses?.length === 1,
+      'Supported cross-company income linking (Expense Company 1 with Income Company 2)'
     );
+    // Delete this temporary cross-company expense so step 6 company usage math remains intact
+    const crossExpId = crossCompRes.data?.createExpenses[0]?.id;
+    if (crossExpId) {
+      await gql(`mutation DelExp($id: ID!) { deleteExpense(id: $id) }`, { id: crossExpId }, tokenA);
+    }
 
     // 4b. Successfully link expense to Company 1's income (Example 1: ₹35,000 linked to Income Alpha)
     const exp1Res = await gql(`

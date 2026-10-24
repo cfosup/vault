@@ -21,7 +21,7 @@ import { getRecentIncomeSelections, setCachedIncomeSelection } from '../../utils
  * 1. Searchable Combobox with floating popover & keyboard/click-outside support.
  * 2. Expandable Company Groups (Class) with nested Income items (Sub-Class) and counts.
  * 3. Multi-Select Checkboxes with removable chips in the trigger.
- * 4. Recently Used / Created (Cached) entries pinned at the top.
+ * 4. Recently Used / Created (Recent Only) entries pinned at the top.
  * 5. Desktop and mobile touch responsiveness.
  */
 export const CompanyIncomeSelect = ({
@@ -217,10 +217,8 @@ export const CompanyIncomeSelect = ({
     }
 
     const selectedIncomes = incomes.filter((i) => nextIds.includes(i.id));
-    // Determine the primary companyId: either current company if it has selected incomes, or the first selected income's company
-    const targetCompanyId = selectedIncomes.length > 0
-      ? (companyId && selectedIncomes.some((i) => i.companyId === companyId) ? companyId : selectedIncomes[0].companyId)
-      : (companyId || (companies[0]?.id || ''));
+    // Preserve currently assigned Legal Entity (companyId) to allow cross-company income linking!
+    const targetCompanyId = companyId || (selectedIncomes.length > 0 ? selectedIncomes[0].companyId : (companies[0]?.id || ''));
 
     const comp = companies.find((c) => c.id === targetCompanyId);
 
@@ -254,13 +252,14 @@ export const CompanyIncomeSelect = ({
       incomeId: null,
     });
 
+    const targetCompanyId = companyId || comp.id;
     if (onChange) {
       onChange({
-        companyId: comp.id,
+        companyId: targetCompanyId,
         incomeId: null,
         incomeIds: [],
         selectedIncomes: [],
-        company: comp,
+        company: companies.find((c) => c.id === targetCompanyId) || comp,
       });
     }
   };
@@ -270,9 +269,7 @@ export const CompanyIncomeSelect = ({
     if (e) e.stopPropagation();
     const nextIds = selectedIncomeIds.filter((id) => id !== incId);
     const selectedIncomes = incomes.filter((i) => nextIds.includes(i.id));
-    const targetCompanyId = selectedIncomes.length > 0
-      ? (companyId && selectedIncomes.some((i) => i.companyId === companyId) ? companyId : selectedIncomes[0].companyId)
-      : companyId;
+    const targetCompanyId = companyId || (selectedIncomes.length > 0 ? selectedIncomes[0].companyId : '');
     const comp = companies.find((c) => c.id === targetCompanyId);
 
     if (onChange) {
@@ -682,7 +679,7 @@ export const CompanyIncomeSelect = ({
               </div>
             )}
 
-            {/* A. RECENTLY USED / CREATED (CACHED) SECTION */}
+            {/* A. RECENTLY USED / CREATED (RECENT ONLY) SECTION */}
             {!searchQuery && recentItems.length > 0 && (
               <div style={{ marginBottom: '0.5rem', paddingBottom: '0.4rem', borderBottom: '1px solid var(--border-color)' }}>
                 <div
@@ -698,7 +695,7 @@ export const CompanyIncomeSelect = ({
                   }}
                 >
                   <Sparkles size={11} style={{ color: 'var(--primary)' }} />
-                  <span>Recently Used / Created (Cached)</span>
+                  <span>Recently Used / Created (Recent Only)</span>
                 </div>
 
                 {recentItems.map((rec, i) => {

@@ -354,3 +354,10 @@ export const GET_EXPENSES_BY_INCOME = gql`
   }
 `;
 
+export const CHECK_EMAIL_EXISTS = gql`
+  query CheckEmailExists($email: String!) {
+    checkEmailExists(email: $email)
+  }
+`;
+
+

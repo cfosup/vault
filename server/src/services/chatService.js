@@ -53,39 +53,17 @@ export const getOrgFinancialContext = async (orgId) => {
   const totalIncome = incomeAgg.length > 0 ? incomeAgg[0].total : 0;
   const incomeCount = incomeAgg.length > 0 ? incomeAgg[0].count : 0;
   const netBalance = totalIncome - totalExpenses;
+  const companyNameMap = new Map(companies.map((c) => [c._id.toString(), c.name]));
 
-  // Map expenses by incomeId
-  const expensesByIncomeId = new Map();
-  let unlinkedExpensesTotal = 0;
-  let unlinkedExpenseCount = 0;
-
-  for (const exp of allExpenses) {
-    if (exp.incomeId) {
-      const incKey = exp.incomeId.toString();
-      if (!expensesByIncomeId.has(incKey)) {
-        expensesByIncomeId.set(incKey, []);
-      }
-      expensesByIncomeId.get(incKey).push({
-        id: exp._id.toString(),
-        companyId: exp.companyId.toString(),
-        vendor: exp.vendor || 'Unknown Payee',
-        amount: exp.amount,
-        categoryName: exp.categoryName,
-        subcategory: exp.subcategory || '',
-        date: exp.date ? exp.date.toISOString().split('T')[0] : '',
-      });
-    } else {
-      unlinkedExpensesTotal += exp.amount;
-      unlinkedExpenseCount += 1;
-    }
-  }
-
-  // Calculate usage per company and per income entry
+  // Calculate usage per company, populate all expenses per company, and map by income
   const companyUsageMap = new Map();
   for (const comp of companies) {
     companyUsageMap.set(comp._id.toString(), {
       companyId: comp._id.toString(),
       companyName: comp.name,
+      totalExpenses: 0,
+      expenseCount: 0,
+      expenses: [],
       totalIncome: 0,
       totalUtilized: 0,
       remainingBalance: 0,
@@ -97,9 +75,82 @@ export const getOrgFinancialContext = async (orgId) => {
     });
   }
 
+  // Map expenses by incomeId (supporting single income, multi-incomes, and cross-company linking)
+  const expensesByIncomeId = new Map();
+  let unlinkedExpensesTotal = 0;
+  let unlinkedExpenseCount = 0;
+  const crossCompanyExpenses = [];
+  const allProcessedExpenses = [];
+
   for (const exp of allExpenses) {
-    if (!exp.incomeId) {
-      const compRecord = companyUsageMap.get(exp.companyId.toString());
+    const expCompId = exp.companyId.toString();
+    const expCompName = companyNameMap.get(expCompId) || 'Unknown Legal Entity';
+    const compRecord = companyUsageMap.get(expCompId);
+
+    const linkedIncomeIds = (
+      exp.incomeIds && exp.incomeIds.length > 0
+        ? exp.incomeIds
+        : exp.incomeId
+        ? [exp.incomeId]
+        : []
+    ).map((id) => id.toString());
+
+    const isLinked = linkedIncomeIds.length > 0;
+
+    const formattedExp = {
+      id: exp._id.toString(),
+      companyId: expCompId,
+      companyName: expCompName,
+      vendor: exp.vendor || 'Unknown Payee',
+      amount: exp.amount,
+      categoryName: exp.categoryName,
+      subcategory: exp.subcategory || '',
+      date: exp.date ? exp.date.toISOString().split('T')[0] : '',
+      isLinked,
+      incomeIds: linkedIncomeIds,
+      incomeAllocations: exp.incomeAllocations || [],
+    };
+
+    allProcessedExpenses.push(formattedExp);
+
+    if (compRecord) {
+      compRecord.totalExpenses += exp.amount;
+      compRecord.expenseCount += 1;
+      compRecord.expenses.push(formattedExp);
+    }
+
+    if (isLinked) {
+      for (const incKey of linkedIncomeIds) {
+        if (!expensesByIncomeId.has(incKey)) {
+          expensesByIncomeId.set(incKey, []);
+        }
+
+        let allocatedAmount = exp.amount;
+        if (Array.isArray(exp.incomeAllocations) && exp.incomeAllocations.length > 0) {
+          const alloc = exp.incomeAllocations.find((a) => a.incomeId && a.incomeId.toString() === incKey);
+          if (alloc && typeof alloc.amount === 'number') {
+            allocatedAmount = alloc.amount;
+          }
+        }
+
+        const expObj = {
+          id: exp._id.toString(),
+          companyId: expCompId,
+          expenseCompanyName: expCompName,
+          vendor: exp.vendor || 'Unknown Payee',
+          amount: exp.amount,
+          allocatedAmount,
+          incomeAllocations: exp.incomeAllocations || [],
+          categoryName: exp.categoryName,
+          subcategory: exp.subcategory || '',
+          date: exp.date ? exp.date.toISOString().split('T')[0] : '',
+        };
+
+        expensesByIncomeId.get(incKey).push(expObj);
+      }
+    } else {
+      unlinkedExpensesTotal += exp.amount;
+      unlinkedExpenseCount += 1;
       if (compRecord) {
         compRecord.unlinkedExpensesTotal += exp.amount;
         compRecord.unlinkedExpenseCount += 1;
@@ -121,7 +172,7 @@ export const getOrgFinancialContext = async (orgId) => {
           return sum + alloc.amount;
         }
       }
-      return sum + e.amount;
+      return sum + (typeof e.allocatedAmount === 'number' ? e.allocatedAmount : e.amount);
     }, 0);
     const remainingBalance = Math.max(inc.amount - totalUtilized, 0);
     const excessSpending = Math.max(totalUtilized - inc.amount, 0);
@@ -131,6 +182,20 @@ export const getOrgFinancialContext = async (orgId) => {
 
     const compRecord = companyUsageMap.get(compIdStr);
     const compName = compRecord ? compRecord.companyName : 'Unknown Company';
+
+    // Track cross-company disbursements linked to this income
+    for (const le of linked) {
+      if (le.companyId !== compIdStr) {
+        crossCompanyExpenses.push({
+          ...le,
+          incomeId: incIdStr,
+          incomeSource: inc.source,
+          incomeCompanyId: compIdStr,
+          incomeCompanyName: compName,
+          isCrossCompany: true,
+        });
+      }
+    }
 
     const item = {
       id: incIdStr,
@@ -171,9 +236,12 @@ export const getOrgFinancialContext = async (orgId) => {
     (i) => i.amount > 0 && (i.remainingBalance / i.amount <= 0.2 || i.remainingBalance === 0)
   );
 
+  const crossCompanyTotal = crossCompanyExpenses.reduce((sum, e) => sum + (e.allocatedAmount || e.amount), 0);
+
   return {
     totalExpenses,
     expenseCount,
+    allExpenses: allProcessedExpenses,
     totalIncome,
     incomeCount,
     netBalance,
@@ -185,6 +253,8 @@ export const getOrgFinancialContext = async (orgId) => {
     companyUsage: companyUsageList,
     excessSpendingIncomes,
     lowBalanceIncomes,
+    crossCompanyExpenses,
+    crossCompanyTotal,
     orgTotalExcessSpending,
     unlinkedExpensesTotal,
     unlinkedExpenseCount,
@@ -192,20 +262,97 @@ export const getOrgFinancialContext = async (orgId) => {
 };
 
 /**
- * Robust deterministic financial analyzer supporting all 10 prompt questions and proactive insights.
+ * Robust deterministic financial analyzer supporting company expenses, income linking, and proactive insights.
  */
-export const generateDeterministicReply = (message, context) => {
+export const generateDeterministicReply = (message, context, activeCompanyId = null) => {
   const query = message.toLowerCase().trim();
 
-  // Helper: Find company by name in query
-  const matchedCompany = context.companyUsage.find((c) =>
-    query.includes(c.companyName.toLowerCase())
-  );
+  // Helper: Find company by name in query (longer names first to prevent partial shadowing) or active company
+  const matchedCompany =
+    [...context.companyUsage]
+      .sort((a, b) => b.companyName.length - a.companyName.length)
+      .find((c) => {
+        const compLower = c.companyName.toLowerCase();
+        const escaped = compLower.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const wordRegex = new RegExp(`(^|\\s|["'(\\[])${escaped}($|\\s|['"\\]),?.!])`, 'i');
+        return (
+          wordRegex.test(query) ||
+          query.includes(`company ${compLower}`) ||
+          query.includes(`in ${compLower}`) ||
+          query.includes(`for ${compLower}`) ||
+          query.includes(`of ${compLower}`) ||
+          query.includes(compLower)
+        );
+      }) ||
+    (activeCompanyId
+      ? context.companyUsage.find(
+          (c) =>
+            c.companyId === activeCompanyId &&
+            (query.includes('this company') ||
+              query.includes('current company') ||
+              query.includes('selected company') ||
+              query.includes('active company'))
+        )
+      : null);
 
   // Helper: Find income by source name in query
   const matchedIncome = context.allIncomes.find((inc) =>
     query.includes(inc.source.toLowerCase())
   );
+
+  // A. Company Existence / Recognition: "Dad as a company do you know?", "Tell me about company Dad"
+  if (
+    matchedCompany &&
+    (query.includes('do you know') ||
+      query.includes('as a company') ||
+      query.includes('is a company') ||
+      query.includes('who is') ||
+      query.includes('tell me about') ||
+      query.includes('about the company') ||
+      query.includes('what is the company') ||
+      query.includes('summary of') ||
+      query.includes('details for'))
+  ) {
+    let reply = `Yes. **${matchedCompany.companyName}** is listed among the active companies in your organization.`;
+    reply += `\n- **Total Recorded Expenses**: ₹${matchedCompany.totalExpenses.toLocaleString('en-IN')} across ${matchedCompany.expenseCount} entry(s)`;
+    reply += `\n- **Total Recorded Income**: ₹${matchedCompany.totalIncome.toLocaleString('en-IN')} across ${matchedCompany.incomeEntries.length} entry(s)`;
+    if (matchedCompany.totalIncome > 0) {
+      reply += `\n- **Income Utilized**: ₹${matchedCompany.totalUtilized.toLocaleString('en-IN')} (${matchedCompany.utilizationPercentage}%)`;
+      reply += `\n- **Remaining Balance**: ₹${matchedCompany.remainingBalance.toLocaleString('en-IN')}`;
+    }
+    return reply;
+  }
+
+  // B. Company Expenses: "okay list me the expenses in the company dad", "what are the expenses in Dad?", "show expenses for Dad"
+  if (
+    matchedCompany &&
+    (query.includes('expense') ||
+      query.includes('spend') ||
+      query.includes('disbursement') ||
+      query.includes('cost') ||
+      query.includes('transaction') ||
+      query.includes('charges')) &&
+    !query.includes('income')
+  ) {
+    if (!matchedCompany.expenses || matchedCompany.expenses.length === 0) {
+      return `**${matchedCompany.companyName}** currently has no recorded expenses in the system.`;
+    }
+
+    const exps = matchedCompany.expenses;
+    const listStr = exps
+      .slice(0, 15)
+      .map(
+        (e) =>
+          `- **${e.vendor}**: ₹${e.amount.toLocaleString('en-IN')} (${e.categoryName}${e.subcategory ? ` • ${e.subcategory}` : ''}) on ${e.date}${e.isLinked ? ' [Linked to Income]' : ''}`
+      )
+      .join('\n');
+
+    let reply = `Found **${exps.length}** recorded expense(s) for **${matchedCompany.companyName}** totaling **₹${matchedCompany.totalExpenses.toLocaleString('en-IN')}**:\n\n${listStr}`;
+    if (exps.length > 15) {
+      reply += `\n- ...and ${exps.length - 15} more.`;
+    }
+    return reply;
+  }
 
   // 1. "Which company has the highest linked expense utilization?"
   if (
@@ -323,14 +470,18 @@ export const generateDeterministicReply = (message, context) => {
     );
 
     if (linkedExps.length === 0) {
-      return `There are currently no expenses linked to **${matchedCompany.companyName}**'s income entries.`;
+      let msg = `There are currently no expenses linked to **${matchedCompany.companyName}**'s income entries.`;
+      if (matchedCompany.expenseCount > 0) {
+        msg += `\n\n💡 *Note: **${matchedCompany.companyName}** has ${matchedCompany.expenseCount} general/unlinked expense(s) totaling ₹${matchedCompany.totalExpenses.toLocaleString('en-IN')}.*`;
+      }
+      return msg;
     }
 
     const listStr = linkedExps
       .slice(0, 10)
       .map(
         (e) =>
-          `- **${e.vendor}**: ₹${e.amount.toLocaleString('en-IN')} (${e.categoryName}${e.subcategory ? ` • ${e.subcategory}` : ''}) linked to *${e.incomeSource}* on ${e.date}`
+          `- **${e.vendor}**: ₹${(e.allocatedAmount || e.amount).toLocaleString('en-IN')} (${e.categoryName}${e.subcategory ? ` • ${e.subcategory}` : ''}) linked to *${e.incomeSource}* on ${e.date}${e.expenseCompanyName && e.expenseCompanyName !== matchedCompany.companyName ? ` [Cross-Company: Charged to ${e.expenseCompanyName}]` : ''}`
       )
       .join('\n');
 
@@ -340,6 +491,7 @@ export const generateDeterministicReply = (message, context) => {
     }
     return reply;
   }
+
 
   // 8. "Which expenses are linked to this income entry?" (matches specific income or asks for clarification)
   if (
@@ -354,7 +506,7 @@ export const generateDeterministicReply = (message, context) => {
       const listStr = matchedIncome.linkedExpenses
         .map(
           (e) =>
-            `- **${e.vendor}**: ₹${e.amount.toLocaleString('en-IN')} (${e.categoryName}${e.subcategory ? ` • ${e.subcategory}` : ''}) on ${e.date}`
+            `- **${e.vendor}**: ₹${(e.allocatedAmount || e.amount).toLocaleString('en-IN')} (${e.categoryName}${e.subcategory ? ` • ${e.subcategory}` : ''}) on ${e.date}${e.expenseCompanyName && e.expenseCompanyName !== matchedIncome.companyName ? ` [Cross-Company: Charged to ${e.expenseCompanyName}]` : ''}`
         )
         .join('\n');
       return `The following ${matchedIncome.linkedExpenses.length} expense(s) are linked to "**${matchedIncome.source}**" (Total Utilized: ₹${matchedIncome.totalUtilized.toLocaleString('en-IN')} of ₹${matchedIncome.amount.toLocaleString('en-IN')}):\n\n${listStr}\n\n- **Remaining Balance**: ₹${matchedIncome.remainingBalance.toLocaleString('en-IN')}\n- **Excess Spending**: ₹${matchedIncome.excessSpending.toLocaleString('en-IN')}`;
@@ -366,7 +518,7 @@ export const generateDeterministicReply = (message, context) => {
         return `There are no expenses linked to your income entry "**${sole.source}**".`;
       }
       const listStr = sole.linkedExpenses
-        .map((e) => `- **${e.vendor}**: ₹${e.amount.toLocaleString('en-IN')} (${e.categoryName})`)
+        .map((e) => `- **${e.vendor}**: ₹${(e.allocatedAmount || e.amount).toLocaleString('en-IN')} (${e.categoryName})${e.expenseCompanyName && e.expenseCompanyName !== sole.companyName ? ` [Cross-Company: Charged to ${e.expenseCompanyName}]` : ''}`)
         .join('\n');
       return `Expenses linked to "**${sole.source}**" (${sole.companyName}):\n\n${listStr}`;
     }
@@ -411,6 +563,97 @@ export const generateDeterministicReply = (message, context) => {
     return `Please specify which income entry or company you want to check the remaining balance for.`;
   }
 
+  // 11. System modifications & New Features overview
+  if (
+    query.includes('new feature') ||
+    query.includes('new modification') ||
+    query.includes('what are the changes') ||
+    query.includes('what changed') ||
+    query.includes('what is new') ||
+    query.includes("what's new") ||
+    query.includes('recent update') ||
+    query.includes('recent change') ||
+    query.includes('latest update') ||
+    query.includes('system update') ||
+    query.includes('modifications')
+  ) {
+    return (
+      `Here are the latest modifications in ExpenseFlow:\n\n` +
+      `1. **Cross-Company Income Linking**: You can now allocate disbursements across different legal entities (e.g., Company A's expense funded by Company B's income) without overwriting the expense's Legal Entity.\n` +
+      `2. **"Recent Only" Combobox**: Renamed and streamlined the selector section to **Recently Used / Created (Recent Only)** for fast, one-click reuse of recent revenue streams.\n` +
+      `3. **Password Visibility Toggle**: An interactive Eye icon allows you to show/hide your password during login and sign-up.\n` +
+      `4. **Email Existence Verification**: Real-time email validation warns you if an email does not exist before attempting login and offers a one-click switch to account creation.`
+    );
+  }
+
+  // 12. Cross-Company / Cross-Platform Linking queries
+  if (
+    query.includes('cross company') ||
+    query.includes('cross-company') ||
+    query.includes('cross entity') ||
+    query.includes('cross-entity') ||
+    query.includes('cross platform') ||
+    query.includes('cross-platform') ||
+    query.includes('different company') ||
+    query.includes('inter company') ||
+    query.includes('inter-company') ||
+    query.includes('another company') ||
+    (query.includes('link') && (query.includes('another') || query.includes('different') || query.includes('other')) && query.includes('company')) ||
+    (query.includes('how') && query.includes('link') && query.includes('income'))
+  ) {
+    if (context.crossCompanyExpenses.length === 0) {
+      return 'There are currently no cross-company linked expenses recorded. All linked disbursements are funded by income within their own legal entity.\n\n💡 *Note: ExpenseFlow supports cross-platform linking! You can assign an expense to Company A (Legal Entity) and link it to an income of Company B in the "Link to Income (Class & Sub-Class)" selector without changing the expense\'s company.*';
+    }
+    const listStr = context.crossCompanyExpenses
+      .slice(0, 10)
+      .map(
+        (e) =>
+          `- **${e.vendor}**: ₹${(e.allocatedAmount || e.amount).toLocaleString('en-IN')} (${e.categoryName}) — Charged to **${e.expenseCompanyName}**, funded by **${e.incomeCompanyName}**'s income *"${e.incomeSource}"* on ${e.date}`
+      )
+      .join('\n');
+    let reply = `Found **${context.crossCompanyExpenses.length}** cross-company linked disbursement(s) totaling **₹${context.crossCompanyTotal.toLocaleString('en-IN')}**:\n\n${listStr}`;
+    if (context.crossCompanyExpenses.length > 10) {
+      reply += `\n- ...and ${context.crossCompanyExpenses.length - 10} more.`;
+    }
+    return reply;
+  }
+
+  // 13. "Recent Only" vs "Cached" selector queries
+  if (
+    query.includes('recent only') ||
+    query.includes('cached only') ||
+    (query.includes('recent') && query.includes('cached')) ||
+    query.includes('recently used') ||
+    query.includes('recent selector')
+  ) {
+    return 'The **Recently Used / Created (Recent Only)** section in the "Link to Income (Class & Sub-Class)" combobox pins your latest income and company selections at the top of the selector. This enables fast, one-click reuse of recent revenue streams across consecutive single expenses or batch grid rows.';
+  }
+
+  // 14. Password visibility & Email verification queries
+  if (
+    query.includes('see password') ||
+    query.includes('show password') ||
+    query.includes('view password') ||
+    query.includes('password toggle') ||
+    query.includes('eye icon') ||
+    query.includes('password visibility') ||
+    query.includes('hide password')
+  ) {
+    return 'You can toggle password visibility on the login and registration pages by clicking the **Eye icon** inside the password field to see or hide your password.';
+  }
+  if (
+    query.includes('verify email') ||
+    query.includes('email exist') ||
+    query.includes('mail exist') ||
+    query.includes('check email') ||
+    query.includes('email verification') ||
+    query.includes('unregistered email') ||
+    query.includes('email not found') ||
+    query.includes('account not found')
+  ) {
+    return 'The login page automatically verifies whether an email address exists in the system as soon as you type or leave the email field. If an email is not registered, it provides immediate feedback and a direct button to switch to account creation.';
+  }
+
   // General fallbacks
   if (query.includes('total expense') || query.includes('how much spent') || query.includes('total spend')) {
     return `Your organization's total recorded expenses are ₹${context.totalExpenses.toLocaleString('en-IN')} across ${context.expenseCount} entries.`;
@@ -450,14 +693,14 @@ export const generateDeterministicReply = (message, context) => {
  * Main chat handler: Uses Groq llama-3.3-70b-versatile via LangChain if key is configured,
  * or falls back to deterministic financial analyzer.
  */
-export const generateChatReply = async (orgId, userId, sessionId, message, history = []) => {
+export const generateChatReply = async (orgId, userId, sessionId, message, history = [], activeCompanyId = null) => {
   const context = await getOrgFinancialContext(orgId);
 
   const groqApiKey = process.env.GROQ_API_KEY;
   const isGroqConfigured = groqApiKey && !groqApiKey.includes('your_groq_api_key') && groqApiKey.startsWith('gsk_');
 
   if (!isGroqConfigured) {
-    return generateDeterministicReply(message, context);
+    return generateDeterministicReply(message, context, activeCompanyId);
   }
 
   try {
@@ -468,20 +711,32 @@ export const generateChatReply = async (orgId, userId, sessionId, message, histo
       temperature: 0.2,
     });
 
-    const companyUsageSummary = context.companyUsage.map((c) => ({
+    const activeCompRecord = activeCompanyId
+      ? context.companyUsage.find((c) => c.companyId === activeCompanyId)
+      : null;
+
+    const companyFinancialsSummary = context.companyUsage.map((c) => ({
       companyName: c.companyName,
+      totalExpenses: c.totalExpenses,
+      expenseCount: c.expenseCount,
+      expenses: c.expenses.slice(0, 20).map((e) => ({
+        vendor: e.vendor,
+        amount: e.amount,
+        category: e.categoryName,
+        subcategory: e.subcategory,
+        date: e.date,
+        isLinkedToIncome: e.isLinked,
+      })),
       totalIncome: c.totalIncome,
       totalUtilized: c.totalUtilized,
       remainingBalance: c.remainingBalance,
       totalExcessSpending: c.totalExcessSpending,
-      utilizationPercentage: c.utilizationPercentage,
       incomeEntries: c.incomeEntries.map((i) => ({
         source: i.source,
         amount: i.amount,
         totalUtilized: i.totalUtilized,
         remainingBalance: i.remainingBalance,
         excessSpending: i.excessSpending,
-        utilizationPercentage: i.utilizationPercentage,
         linkedExpenses: i.linkedExpenses,
       })),
       unlinkedExpensesTotal: c.unlinkedExpensesTotal,
@@ -490,27 +745,35 @@ export const generateChatReply = async (orgId, userId, sessionId, message, histo
 
     const systemPrompt = `You are a professional financial AI assistant for Vault SaaS.
 You have access to the following real-time, authorized financial data for this organization:
-- Total Expenses: ₹${context.totalExpenses.toLocaleString('en-IN')} (${context.expenseCount} entries)
-- Total Income: ₹${context.totalIncome.toLocaleString('en-IN')} (${context.incomeCount} entries)
+- Total Organization Expenses: ₹${context.totalExpenses.toLocaleString('en-IN')} (${context.expenseCount} entries)
+- Total Organization Income: ₹${context.totalIncome.toLocaleString('en-IN')} (${context.incomeCount} entries)
 - Net Balance: ₹${context.netBalance.toLocaleString('en-IN')}
-- Total Excess Spending Across All Income Entries: ₹${context.orgTotalExcessSpending.toLocaleString('en-IN')}
-- Company Income Usage & Linked Disbursements: ${JSON.stringify(companyUsageSummary)}
+- Active Selected Company in UI: ${activeCompRecord ? activeCompRecord.companyName : 'None (Viewing Organization)'}
+- Detailed Company Financials (Expenses & Income per Legal Entity):
+${JSON.stringify(companyFinancialsSummary, null, 2)}
+- Cross-Company Linked Disbursements: ${JSON.stringify(context.crossCompanyExpenses)}
 - Top Spending Categories: ${JSON.stringify(context.topCategories)}
 - Top Vendors: ${JSON.stringify(context.topVendors)}
-- Active Companies: ${JSON.stringify(context.companies.map((c) => c.name))}
+- Active Companies List: ${JSON.stringify(context.companies.map((c) => c.name))}
 - Budgets: ${JSON.stringify(context.budgets)}
 
-Rules & Calculation Formulas:
+Rules & Capabilities:
 1. Ground your answers strictly in the financial facts above.
-2. Remaining balance = MAX(Income Amount - Total Utilized, 0).
-3. Excess spending = MAX(Total Utilized - Income Amount, 0).
-4. Utilization percentage = (Total Utilized / Income Amount) * 100 (safely 0 when income is 0).
-5. Format all monetary values with ₹ (Indian Rupee) and commas (e.g. ₹50,000).
-6. Never expose or invent financial data for other organizations or users.
-7. Ask for clarification if a company or income entry name cannot be identified unambiguously.
-8. If asked for information not present in the records, state clearly: "I cannot find data for that."
-9. Offer proactive context-aware insights when excess spending or low remaining balance (< 20%) is detected.
-10. Be concise, precise, and executive-ready.`;
+2. When asked about expenses for a company (e.g. "what are the expenses in Dad?", "list me the expenses in the company dad"), look up that company in "Detailed Company Financials". If the company has recorded expenses in its 'expenses' list, list them clearly with vendor, amount (formatted in ₹), category, and date.
+3. If a company exists in the records but has 0 recorded expenses, state clearly: "Company [Name] currently has no recorded expenses." NEVER say "I cannot find data for that" if the company is listed among the active companies.
+4. If asked if a company exists or is known (e.g. "Dad as a company do you know?"), confirm that it is an active company in the organization and summarize its recorded expenses and income.
+5. Remaining balance = MAX(Income Amount - Total Utilized, 0).
+6. Excess spending = MAX(Total Utilized - Income Amount, 0).
+7. Utilization percentage = (Total Utilized / Income Amount) * 100 (safely 0 when income is 0).
+8. Cross-Platform / Cross-Company Linking: ExpenseFlow supports cross-company income linking. An expense recorded for Company A (Legal Entity) can be funded by income entries from Company B without modifying the expense's company.
+9. Recent Only: The "Link to Income (Class & Sub-Class)" combobox includes a pinned "Recently Used / Created (Recent Only)" section at the top for quick selection across entries.
+10. Authentication & Security: Real-time email verification and password visibility toggle (Eye icon) are enabled on the login portal.
+11. Format all monetary values with ₹ (Indian Rupee) and commas (e.g. ₹50,000).
+12. Never expose or invent financial data for other organizations or users.
+13. If asked about an entity, vendor, or user that is genuinely NOT present in any active records, state: "I cannot find data for [entity]."
+14. Offer proactive context-aware insights when excess spending or low remaining balance (< 20%) is detected.
+15. If asked about recent modifications, system updates, or new features, summarize the 4 core updates: (1) Cross-Company Income Linking without changing legal entity, (2) 'Recently Used / Created (Recent Only)' combobox section, (3) Password visibility toggle (Eye icon), and (4) Real-time email existence verification at login.
+16. Be concise, precise, and executive-ready.`;
 
     const messages = [new SystemMessage(systemPrompt)];
 
@@ -530,7 +793,7 @@ Rules & Calculation Formulas:
     return response.content || 'I could not generate a response at this time.';
   } catch (error) {
     console.warn('[ChatService] Groq API call encountered an issue, falling back to deterministic answer:', error.message);
-    return generateDeterministicReply(message, context);
+    return generateDeterministicReply(message, context, activeCompanyId);
   }
 };
 

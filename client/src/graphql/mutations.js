@@ -315,8 +315,8 @@ export const DELETE_BUDGET_BUCKET = gql`
 `;
 
 export const SEND_CHAT_MESSAGE = gql`
-  mutation SendChatMessage($sessionId: String!, $message: String!) {
-    sendChatMessage(sessionId: $sessionId, message: $message) {
+  mutation SendChatMessage($sessionId: String!, $message: String!, $activeCompanyId: ID) {
+    sendChatMessage(sessionId: $sessionId, message: $message, activeCompanyId: $activeCompanyId) {
       role
       content
       timestamp

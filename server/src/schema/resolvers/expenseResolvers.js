@@ -218,27 +218,15 @@ export const expenseResolvers = {
             ...(Array.isArray(input.incomeAllocations) ? input.incomeAllocations.map((a) => a.incomeId) : []),
           ].filter(Boolean);
 
-          const hasMultiIncomes = allIds.length > 1;
-
-          if (!hasMultiIncomes && input.incomeId && (!input.incomeIds || input.incomeIds.length <= 1) && (!input.incomeAllocations || input.incomeAllocations.length <= 1)) {
-            // Standard single-income linking: ensure it matches the selected company (Phase 5 Step 4a)
-            const targetCompId = incomeMap.get(input.incomeId.toString());
-            if (!targetCompId || targetCompId !== input.companyId.toString()) {
+          // Cross-entity / cross-company income linking is supported within the organization.
+          // Validate that all referenced income entries exist within the current organization.
+          for (const incId of allIds) {
+            const targetCompId = incomeMap.get(incId.toString());
+            if (!targetCompId) {
               throw new GraphQLError(
-                'Invalid income entry for this company. The income entry does not exist or belongs to another entity.',
+                'Invalid income entry. The income entry does not exist or belongs to another organization.',
                 { extensions: { code: 'BAD_USER_INPUT' } }
               );
-            }
-          } else {
-            // Multi-income linking across multiple companies: ensure all selected incomes exist within this organization!
-            for (const incId of allIds) {
-              const targetCompId = incomeMap.get(incId.toString());
-              if (!targetCompId) {
-                throw new GraphQLError(
-                  'Invalid income entry. The income entry does not exist or belongs to another organization.',
-                  { extensions: { code: 'BAD_USER_INPUT' } }
-                );
-              }
             }
           }
         }
@@ -451,16 +439,6 @@ export const expenseResolvers = {
             );
           }
 
-          if (ids.length === 1) {
-            const targetCompanyId = input.companyId || existingExpense.companyId;
-            if (validIncomes[0].companyId.toString() !== targetCompanyId.toString()) {
-              throw new GraphQLError(
-                'Invalid income entry for this company. The income entry does not exist or belongs to another entity.',
-                { extensions: { code: 'BAD_USER_INPUT' } }
-              );
-            }
-          }
-
           updateData.incomeAllocations = allocs.map((a) => ({
             incomeId: a.incomeId,
             amount: Math.max(0, Number(a.amount || 0)),
@@ -489,16 +467,6 @@ export const expenseResolvers = {
             );
           }
 
-          if (ids.length === 1) {
-            const targetCompanyId = input.companyId || existingExpense.companyId;
-            if (validIncomes[0].companyId.toString() !== targetCompanyId.toString()) {
-              throw new GraphQLError(
-                'Invalid income entry for this company. The income entry does not exist or belongs to another entity.',
-                { extensions: { code: 'BAD_USER_INPUT' } }
-              );
-            }
-          }
-
           const perItem = Number((targetAmount / ids.length).toFixed(2));
           let runningSum = 0;
           updateData.incomeAllocations = ids.map((id, idx) => {
@@ -522,17 +490,15 @@ export const expenseResolvers = {
         }
       } else if (input.incomeId !== undefined) {
         if (input.incomeId) {
-          const targetCompanyId = input.companyId || existingExpense.companyId;
           const validIncome = await Income.findOne({
             _id: input.incomeId,
             orgId: context.orgId,
-            companyId: targetCompanyId,
             isDeleted: { $ne: true },
           });
 
           if (!validIncome) {
             throw new GraphQLError(
-              'Invalid income entry for this company. The income entry does not exist or belongs to another entity.',
+              'Invalid income entry. The income entry does not exist or belongs to another organization.',
               { extensions: { code: 'BAD_USER_INPUT' } }
             );
           }
@@ -542,7 +508,7 @@ export const expenseResolvers = {
             {
               incomeId: input.incomeId,
               amount: targetAmount,
-              companyId: targetCompanyId,
+              companyId: validIncome.companyId,
             },
           ];
         } else {

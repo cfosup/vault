@@ -26,6 +26,13 @@ export const authResolvers = {
       }
       return user;
     },
+
+    checkEmailExists: async (_, { email }) => {
+      if (!email) return false;
+      const normalizedEmail = email.toLowerCase().trim();
+      const count = await User.countDocuments({ email: normalizedEmail });
+      return count > 0;
+    },
   },
 
   Mutation: {
@@ -105,14 +112,14 @@ export const authResolvers = {
       const normalizedEmail = email.toLowerCase().trim();
       const user = await User.findOne({ email: normalizedEmail });
       if (!user) {
-        throw new GraphQLError('Invalid email or password.', {
-          extensions: { code: 'INVALID_CREDENTIALS', http: { status: 401 } },
+        throw new GraphQLError('No account found with this email address. Please check your email or create an account.', {
+          extensions: { code: 'EMAIL_NOT_FOUND', http: { status: 404 } },
         });
       }
 
       const isMatch = await comparePassword(password, user.passwordHash);
       if (!isMatch) {
-        throw new GraphQLError('Invalid email or password.', {
+        throw new GraphQLError('Incorrect password. Please try again.', {
           extensions: { code: 'INVALID_CREDENTIALS', http: { status: 401 } },
         });
       }

@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Bot,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import { SEND_CHAT_MESSAGE, CLEAR_CHAT_SESSION } from '../../graphql/mutations';
 import { GET_CHAT_SESSION } from '../../graphql/queries';
@@ -29,7 +30,7 @@ export const ChatPanel = () => {
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const { user } = useAuthStore();
+  const { user, activeCompanyId } = useAuthStore();
 
   const [sessionId] = useState(() => {
     let sid = sessionStorage.getItem('vault_chat_sid') || sessionStorage.getItem('expenseflow_chat_sid');
@@ -74,6 +75,7 @@ export const ChatPanel = () => {
         variables: {
           sessionId,
           message: text.trim(),
+          activeCompanyId: activeCompanyId || null,
         },
       });
       refetch();
@@ -112,6 +114,12 @@ export const ChatPanel = () => {
       label: 'Net Cash Flow',
       prompt: 'What is our net operating balance?',
       color: '#10b981',
+    },
+    {
+      icon: Layers,
+      label: 'Cross-Company Links',
+      prompt: 'Are there any cross-company linked expenses across our entities?',
+      color: '#06b6d4',
     },
     {
       icon: PieChart,

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useLazyQuery } from '@apollo/client/react';
 import { LOGIN, REGISTER, FIREBASE_OAUTH } from '../graphql/mutations';
+import { CHECK_EMAIL_EXISTS } from '../graphql/queries';
 import { signInWithGoogle } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -13,6 +14,9 @@ import {
   User,
   Building,
   AlertCircle,
+  Eye,
+  EyeOff,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const LoginPage = () => {
@@ -21,6 +25,9 @@ export const LoginPage = () => {
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const navigate = useNavigate();
@@ -32,10 +39,52 @@ export const LoginPage = () => {
   const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN);
   const [registerMutation, { loading: registerLoading }] = useMutation(REGISTER);
   const [firebaseOAuthMutation, { loading: oauthLoading }] = useMutation(FIREBASE_OAUTH);
+  const [checkEmailQuery] = useLazyQuery(CHECK_EMAIL_EXISTS, { fetchPolicy: 'network-only' });
+
+  const isValidEmail = (val) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).trim());
+  };
+
+  const handleVerifyEmail = async (val = email, registerMode = isRegister) => {
+    const trimmed = (val || '').trim();
+    if (!trimmed || !isValidEmail(trimmed)) {
+      setEmailStatus(null);
+      return;
+    }
+    setCheckingEmail(true);
+    try {
+      const res = await checkEmailQuery({ variables: { email: trimmed } });
+      const exists = !!res.data?.checkEmailExists;
+      if (registerMode) {
+        setEmailStatus({
+          checked: true,
+          exists,
+          message: exists ? 'An account with this email already exists.' : 'Email is available for registration.',
+          isWarning: exists,
+        });
+      } else {
+        setEmailStatus({
+          checked: true,
+          exists,
+          message: exists ? 'Account verified.' : 'No account found with this email address.',
+          isWarning: !exists,
+        });
+      }
+    } catch {
+      setEmailStatus(null);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (!isValidEmail(email)) {
+      setErrorMsg('Please enter a valid email address (e.g. name@company.com).');
+      return;
+    }
 
     try {
       if (isRegister) {
@@ -54,6 +103,10 @@ export const LoginPage = () => {
       } else {
         if (!email || !password) {
           setErrorMsg('Email and password are required.');
+          return;
+        }
+        if (emailStatus?.checked && !emailStatus.exists) {
+          setErrorMsg('No account found with this email address. Please check your email or create an account.');
           return;
         }
         const res = await loginMutation({
@@ -174,6 +227,7 @@ export const LoginPage = () => {
               onClick={() => {
                 setIsRegister(false);
                 setErrorMsg('');
+                setEmailStatus(null);
               }}
             >
               Sign In
@@ -196,6 +250,7 @@ export const LoginPage = () => {
               onClick={() => {
                 setIsRegister(true);
                 setErrorMsg('');
+                setEmailStatus(null);
               }}
             >
               Create Account
@@ -306,11 +361,38 @@ export const LoginPage = () => {
                 marginBottom: '1.25rem',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: '0.6rem',
               }}
             >
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{errorMsg}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
+              {!isRegister && errorMsg.toLowerCase().includes('no account found') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegister(true);
+                    setErrorMsg('');
+                    setEmailStatus(null);
+                  }}
+                  style={{
+                    background: 'var(--danger)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-xs)',
+                    padding: '0.25rem 0.55rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  Create Account
+                </button>
+              )}
             </div>
           )}
 
@@ -351,7 +433,12 @@ export const LoginPage = () => {
             )}
 
             <div className="form-group">
-              <label className="form-label">Email Address</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className="form-label">Email Address</label>
+                {checkingEmail && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Verifying email...</span>
+                )}
+              </div>
               <div className="input-with-icon">
                 <span className="input-icon"><Mail size={15} /></span>
                 <input
@@ -359,24 +446,116 @@ export const LoginPage = () => {
                   className="input"
                   placeholder="name@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailStatus) setEmailStatus(null);
+                  }}
+                  onBlur={() => handleVerifyEmail(email, isRegister)}
                   required
                 />
               </div>
+              {emailStatus?.checked && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: '0.35rem',
+                    fontSize: '0.75rem',
+                    color: emailStatus.isWarning ? 'var(--danger)' : 'var(--success)',
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    {emailStatus.isWarning ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}
+                    {emailStatus.message}
+                  </span>
+                  {emailStatus.isWarning && !isRegister && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegister(true);
+                        setErrorMsg('');
+                        setEmailStatus(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      Create Account →
+                    </button>
+                  )}
+                  {emailStatus.isWarning && isRegister && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegister(false);
+                        setErrorMsg('');
+                        setEmailStatus(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      Sign In →
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
               <label className="form-label">Password</label>
-              <div className="input-with-icon">
+              <div className="input-with-icon" style={{ position: 'relative' }}>
                 <span className="input-icon"><Lock size={15} /></span>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   className="input"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  style={{ paddingRight: '2.5rem' }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0.2rem',
+                    borderRadius: 'var(--radius-sm)',
+                    transition: 'color 0.15s ease',
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-main)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
