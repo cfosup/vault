@@ -1,0 +1,116 @@
+type AdminOverviewStats {
+  totalUsers: Int!
+  totalOrganizations: Int!
+  totalCompanies: Int!
+  totalIncomeCount: Int!
+  totalExpenseCount: Int!
+  totalInteractions: Int!
+  totalChatMessages: Int!
+  activeUsersCount: Int!
+}
+
+type AdminCompanyStat {
+  id: ID!
+  name: String!
+  isActive: Boolean!
+  isCoreBranch: Boolean!
+  expenseCount: Int!
+  incomeCount: Int!
+  createdAt: String!
+}
+
+type AdminUserDetail {
+  id: ID!
+  name: String!
+  email: String!
+  role: String!
+  authProvider: String
+  avatarUrl: String
+  isEmailVerified: Boolean!
+  lastLogin: String
+  createdAt: String!
+  orgId: ID!
+  orgName: String!
+  companies: [AdminCompanyStat!]!
+  companyCount: Int!
+  expenseCount: Int!
+  incomeCount: Int!
+  totalTransactionsCount: Int!
+  chatInteractionsCount: Int!
+  interactionCount: Int!
+  lastActiveAt: String
+}
+
+type AdminActivityLog {
+  id: ID!
+  userId: ID
+  userName: String
+  userEmail: String
+  action: String!
+  entityType: String
+  description: String!
+  companyName: String
+  createdAt: String!
+}
+
+type ApiEndpointMetric {
+  endpoint: String!
+  path: String!
+  method: String!
+  calls: Int!
+  errors: Int!
+  successRate: Float!
+  lastCalledAt: String!
+}
+
+type ApiErrorLog {
+  id: ID!
+  endpoint: String!
+  statusCode: Int!
+  errorMessage: String!
+  timestamp: String!
+}
+
+type AdminApiMetricsPayload {
+  totalCalls: Int!
+  totalErrors: Int!
+  overallSuccessRate: Float!
+  endpoints: [ApiEndpointMetric!]!
+  recentErrors: [ApiErrorLog!]!
+}
+
+type UserChatbotUsage {
+  userId: ID!
+  userName: String!
+  userEmail: String!
+  sessionCount: Int!
+  totalMessagesCount: Int!
+  lastChatAt: String
+}
+
+type AdminDashboardPayload {
+  stats: AdminOverviewStats!
+  users: [AdminUserDetail!]!
+  recentActivities: [AdminActivityLog!]!
+  apiMetrics: AdminApiMetricsPayload!
+  chatbotUsage: [UserChatbotUsage!]!
+}
+
+type AdminAuthPayload {
+  token: String!
+  admin: User!
+  message: String
+}
+
+extend type Query {
+  adminDashboard(search: String, role: String): AdminDashboardPayload!
+  adminApiMetrics: AdminApiMetricsPayload!
+  adminChatbotUsage: [UserChatbotUsage!]!
+  adminActivityLogs(limit: Int): [AdminActivityLog!]!
+  adminUserDetail(userId: ID!): AdminUserDetail
+}
+
+extend type Mutation {
+  adminLogin(email: String!, password: String!): AdminAuthPayload!
+  updateUserRole(userId: ID!, role: String!): User!
+}

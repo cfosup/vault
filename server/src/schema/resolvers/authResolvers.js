@@ -3,6 +3,7 @@ import { Organization, User } from '../../models/index.js';
 import { hashPassword, comparePassword, signToken } from '../../services/authService.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendWelcomeEmail, sendTestEmail } from '../../services/emailService.js';
+import { logActivity } from '../../services/activityService.js';
 
 const slugify = (text) => {
   return text
@@ -94,6 +95,17 @@ export const authResolvers = {
         orgName: org.name,
       }).catch((err) => console.error('[Resend Error] Registration welcome email error:', err.message));
 
+      logActivity({
+        orgId: org._id,
+        userId: user._id,
+        userName: user.name,
+        userEmail: user.email,
+        action: 'USER_REGISTER',
+        entityType: 'User',
+        entityId: user._id,
+        description: `User ${user.name} created an account with organization "${org.name}"`,
+      });
+
       return {
         token,
         user,
@@ -138,6 +150,19 @@ export const authResolvers = {
         userId: user._id.toString(),
         orgId: org._id.toString(),
         role: user.role,
+      });
+
+      logActivity({
+        orgId: org._id,
+        userId: user._id,
+        userName: user.name,
+        userEmail: user.email,
+        action: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+        entityType: 'User',
+        entityId: user._id,
+        description: isNewUser
+          ? `User ${user.name} signed up via Google OAuth`
+          : `User ${user.name} signed in via Google OAuth`,
       });
 
       return {
@@ -218,6 +243,19 @@ export const authResolvers = {
         userId: user._id.toString(),
         orgId: org._id.toString(),
         role: user.role,
+      });
+
+      logActivity({
+        orgId: org._id,
+        userId: user._id,
+        userName: user.name,
+        userEmail: user.email,
+        action: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+        entityType: 'User',
+        entityId: user._id,
+        description: isNewUser
+          ? `User ${user.name} signed up via Google OAuth`
+          : `User ${user.name} signed in via Google OAuth`,
       });
 
       return {

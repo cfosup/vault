@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 import { ChatSession } from '../../models/index.js';
 import { generateChatReply } from '../../services/chatService.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { logActivity } from '../../services/activityService.js';
 
 export const chatResolvers = {
   Query: {
@@ -56,6 +57,15 @@ export const chatResolvers = {
       session.messages.push(assistantMsg);
 
       await session.save();
+
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'AI_CHAT_MESSAGE',
+        entityType: 'ChatSession',
+        description: `Queried Vault AI Assistant: "${message.trim().substring(0, 40)}${message.trim().length > 40 ? '...' : ''}"`,
+        metadata: { sessionId },
+      });
 
       return {
         role: assistantMsg.role,

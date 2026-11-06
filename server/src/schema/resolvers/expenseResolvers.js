@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 import { Expense, Income, BudgetBucket, Company, User } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { sendBudgetAlertEmail } from '../../services/emailService.js';
+import { logActivity } from '../../services/activityService.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -334,6 +335,15 @@ export const expenseResolvers = {
 
       const createdExpenses = await Expense.insertMany(documents);
 
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'CREATE_EXPENSE',
+        entityType: 'Expense',
+        description: `Logged ${createdExpenses.length} expense transaction${createdExpenses.length > 1 ? 's' : ''}`,
+        metadata: { count: createdExpenses.length },
+      });
+
       // Asynchronously evaluate budget limits and dispatch Resend email alerts
       (async () => {
         try {
@@ -544,6 +554,18 @@ export const expenseResolvers = {
         { _id: id, orgId: context.orgId, isDeleted: { $ne: true } },
         { $set: { isDeleted: true, updatedBy: context.userId } }
       );
+
+      if (expense) {
+        logActivity({
+          orgId: context.orgId,
+          userId: context.userId,
+          action: 'DELETE_EXPENSE',
+          entityType: 'Expense',
+          entityId: expense._id,
+          companyId: expense.companyId,
+          description: `Deleted expense of ₹${Number(expense.amount || 0).toLocaleString()} (${expense.categoryName})`,
+        });
+      }
 
       return !!expense;
     },

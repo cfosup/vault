@@ -7,6 +7,7 @@ import { incomeResolvers } from './incomeResolvers.js';
 import { budgetResolvers } from './budgetResolvers.js';
 import { dashboardResolvers } from './dashboardResolvers.js';
 import { chatResolvers } from './chatResolvers.js';
+import { adminResolvers } from './adminResolvers.js';
 
 export const resolvers = {
   Expense: expenseResolvers.Expense,
@@ -21,6 +22,7 @@ export const resolvers = {
     ...budgetResolvers.Query,
     ...dashboardResolvers.Query,
     ...chatResolvers.Query,
+    ...adminResolvers.Query,
   },
   Mutation: {
     ...authResolvers.Mutation,
@@ -31,6 +33,7 @@ export const resolvers = {
     ...incomeResolvers.Mutation,
     ...budgetResolvers.Mutation,
     ...chatResolvers.Mutation,
+    ...adminResolvers.Mutation,
   },
 };
 

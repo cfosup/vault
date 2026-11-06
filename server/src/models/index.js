@@ -7,3 +7,4 @@ export { BudgetBucket } from './BudgetBucket.js';
 export { Expense } from './Expense.js';
 export { Income } from './Income.js';
 export { ChatSession } from './ChatSession.js';
+export { ActivityLog } from './ActivityLog.js';

@@ -186,6 +186,27 @@ Stores conversational AI audit logs and chat history per user and organization.
 | `createdAt` | `Date` | No | `Date.now` | No | Timestamp |
 | `updatedAt` | `Date` | No | `Date.now` | No | Timestamp |
 
+### 2.9 Collection: `activitylogs`
+Stores comprehensive platform interaction logs, user actions, financial logging events, and administration audits.
+
+| Field | Type | Required | Default | Nullable | Description / Constraints |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `_id` | `ObjectId` | Yes | Auto | No | Primary Key |
+| `orgId` | `ObjectId` | No | `null` | Yes | Foreign Key -> `organizations._id` (indexed) |
+| `userId` | `ObjectId` | No | `null` | Yes | Foreign Key -> `users._id` (indexed) |
+| `userName` | `String` | No | `''` | No | Cached full name of acting user |
+| `userEmail`| `String` | No | `''` | No | Cached email of acting user |
+| `action` | `String` | Yes | — | No | Action code (e.g., `USER_LOGIN`, `CREATE_EXPENSE`, `CREATE_INCOME`, etc.) |
+| `entityType` | `String` | No | `''` | No | Entity type (`User`, `Expense`, `Income`, `Company`, `ChatSession`) |
+| `entityId` | `ObjectId` | No | `null` | Yes | Direct document reference |
+| `companyId`| `ObjectId` | No | `null` | Yes | Associated entity reference |
+| `companyName`| `String` | No | `''` | No | Associated entity name |
+| `description`| `String` | Yes | — | No | Human-readable audit description |
+| `metadata` | `Mixed` | No | `{}` | No | Arbitrary contextual metadata |
+| `createdAt`| `Date` | No | `Date.now`| No | Timestamp (indexed: -1) |
+
+*Indexes*: `{ createdAt: -1 }`, `{ orgId: 1, createdAt: -1 }`, `{ userId: 1, createdAt: -1 }`.
+
 ---
 
 ## 3. Database Relationship Diagram

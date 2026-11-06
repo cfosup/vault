@@ -17,6 +17,7 @@ const loadGraphQLFiles = () => {
     'budget.graphql',
     'dashboard.graphql',
     'chat.graphql',
+    'admin.graphql',
   ];
 
   const typeDefsArray = files.map((file) => {

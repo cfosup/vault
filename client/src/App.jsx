@@ -10,6 +10,7 @@ import { BudgetsPage } from './pages/BudgetsPage';
 import { CompaniesPage } from './pages/CompaniesPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 const ProtectedRoute = ({ children }) => {
   const token = useAuthStore((state) => state.token);
@@ -81,6 +82,10 @@ export function App() {
             <SettingsPage />
           </ProtectedRoute>
         }
+      />
+      <Route
+        path="/admin"
+        element={<AdminDashboardPage />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

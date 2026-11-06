@@ -360,4 +360,139 @@ export const CHECK_EMAIL_EXISTS = gql`
   }
 `;
 
+export const GET_ADMIN_DASHBOARD = gql`
+  query GetAdminDashboard($search: String, $role: String) {
+    adminDashboard(search: $search, role: $role) {
+      stats {
+        totalUsers
+        totalOrganizations
+        totalCompanies
+        totalIncomeCount
+        totalExpenseCount
+        totalInteractions
+        totalChatMessages
+        activeUsersCount
+      }
+      users {
+        id
+        name
+        email
+        role
+        authProvider
+        avatarUrl
+        isEmailVerified
+        lastLogin
+        createdAt
+        orgId
+        orgName
+        companyCount
+        expenseCount
+        incomeCount
+        totalTransactionsCount
+        chatInteractionsCount
+        interactionCount
+        lastActiveAt
+        companies {
+          id
+          name
+          isActive
+          isCoreBranch
+          expenseCount
+          incomeCount
+          createdAt
+        }
+      }
+      recentActivities {
+        id
+        userId
+        userName
+        userEmail
+        action
+        entityType
+        description
+        companyName
+        createdAt
+      }
+      apiMetrics {
+        totalCalls
+        totalErrors
+        overallSuccessRate
+        endpoints {
+          endpoint
+          path
+          method
+          calls
+          errors
+          successRate
+          lastCalledAt
+        }
+        recentErrors {
+          id
+          endpoint
+          statusCode
+          errorMessage
+          timestamp
+        }
+      }
+      chatbotUsage {
+        userId
+        userName
+        userEmail
+        sessionCount
+        totalMessagesCount
+        lastChatAt
+      }
+    }
+  }
+`;
+
+export const GET_ADMIN_ACTIVITIES = gql`
+  query GetAdminActivities($limit: Int) {
+    adminActivityLogs(limit: $limit) {
+      id
+      userId
+      userName
+      userEmail
+      action
+      entityType
+      description
+      companyName
+      createdAt
+    }
+  }
+`;
+
+export const GET_ADMIN_USER_DETAIL = gql`
+  query GetAdminUserDetail($userId: ID!) {
+    adminUserDetail(userId: $userId) {
+      id
+      name
+      email
+      role
+      authProvider
+      avatarUrl
+      isEmailVerified
+      lastLogin
+      createdAt
+      orgId
+      orgName
+      companyCount
+      expenseCount
+      incomeCount
+      interactionCount
+      lastActiveAt
+      companies {
+        id
+        name
+        isActive
+        isCoreBranch
+        expenseCount
+        incomeCount
+        createdAt
+      }
+    }
+  }
+`;
+
+
 

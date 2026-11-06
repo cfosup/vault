@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 import { Company, User } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { seedCompanyCoreCategories } from '../../services/seedService.js';
+import { logActivity } from '../../services/activityService.js';
 
 export const companyResolvers = {
   Query: {
@@ -68,6 +69,17 @@ export const companyResolvers = {
         await seedCompanyCoreCategories(orgId, company._id);
       }
 
+      logActivity({
+        orgId,
+        userId: context.userId,
+        action: 'CREATE_COMPANY',
+        entityType: 'Company',
+        entityId: company._id,
+        companyId: company._id,
+        companyName: company.name,
+        description: `Created company entity "${company.name}"`,
+      });
+
       return company;
     },
 
@@ -101,6 +113,17 @@ export const companyResolvers = {
           extensions: { code: 'NOT_FOUND', http: { status: 404 } },
         });
       }
+
+      logActivity({
+        orgId,
+        userId: context.userId,
+        action: 'UPDATE_COMPANY',
+        entityType: 'Company',
+        entityId: company._id,
+        companyId: company._id,
+        companyName: company.name,
+        description: `Updated company entity "${company.name}"`,
+      });
 
       return company;
     },

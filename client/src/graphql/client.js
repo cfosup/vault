@@ -8,7 +8,13 @@ const httpLink = createHttpLink({
 });
 
 const authLink = setContext((_, { headers }) => {
-  const rawToken = localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token');
+  const adminToken = localStorage.getItem('vault_admin_token');
+  const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
+  const rawToken = (isAdminPath && adminToken)
+    ? adminToken
+    : (localStorage.getItem('vault_token') || localStorage.getItem('expenseflow_token') || adminToken);
+
   const token = rawToken && rawToken !== 'undefined' && rawToken !== 'null' && !isTokenExpired(rawToken)
     ? rawToken
     : '';
@@ -45,6 +51,12 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   }
 
   if (isUnauthenticated) {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      localStorage.removeItem('vault_admin_token');
+      localStorage.removeItem('vault_admin_user');
+      return;
+    }
+
     try {
       useAuthStore.getState().logout();
     } catch {

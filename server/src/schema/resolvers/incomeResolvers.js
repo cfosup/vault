@@ -1,6 +1,7 @@
 import { GraphQLError } from 'graphql';
 import { Income } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { logActivity } from '../../services/activityService.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -130,7 +131,18 @@ export const incomeResolvers = {
         };
       });
 
-      return Income.insertMany(documents);
+      const createdIncomes = await Income.insertMany(documents);
+
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'CREATE_INCOME',
+        entityType: 'Income',
+        description: `Logged ${createdIncomes.length} income receipt${createdIncomes.length > 1 ? 's' : ''}`,
+        metadata: { count: createdIncomes.length },
+      });
+
+      return createdIncomes;
     },
 
     updateIncome: async (_, { id, input }, context) => {
@@ -165,6 +177,18 @@ export const incomeResolvers = {
         { _id: id, orgId: context.orgId, isDeleted: { $ne: true } },
         { $set: { isDeleted: true } }
       );
+
+      if (income) {
+        logActivity({
+          orgId: context.orgId,
+          userId: context.userId,
+          action: 'DELETE_INCOME',
+          entityType: 'Income',
+          entityId: income._id,
+          companyId: income.companyId,
+          description: `Deleted income receipt of ₹${Number(income.amount || 0).toLocaleString()} (${income.source})`,
+        });
+      }
 
       return !!income;
     },

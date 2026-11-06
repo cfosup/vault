@@ -6,12 +6,13 @@ import rateLimit from 'express-rate-limit';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { connectDB } from './config/db.js';
-import { seedCategories } from './services/seedService.js';
+import { seedCategories, seedSuperAdmin } from './services/seedService.js';
 import { typeDefs } from './schema/typeDefs/index.js';
 import { resolvers } from './schema/resolvers/index.js';
 import { getAuthContext } from './middleware/auth.js';
 import { exportExpensesCSV, exportIncomeCSV, exportCategoriesCSV } from './controllers/exportController.js';
 import { initKeepAlive } from './services/keepAliveService.js';
+import { apiMetricsMiddleware } from './services/apiMetricsService.js';
 
 dotenv.config();
 
@@ -49,6 +50,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(apiMetricsMiddleware);
 
 // Health check endpoint (used by keep-alive triggers and monitoring)
 app.get('/health', (req, res) => {
@@ -124,6 +126,7 @@ export const startServer = async (customPort = PORT, customUri = process.env.MON
     if (customUri) {
       await connectDB(customUri);
       await seedCategories();
+      await seedSuperAdmin();
     }
 
     if (!apolloServer) {

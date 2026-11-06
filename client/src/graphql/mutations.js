@@ -329,3 +329,29 @@ export const CLEAR_CHAT_SESSION = gql`
     clearChatSession(sessionId: $sessionId)
   }
 `;
+
+export const UPDATE_USER_ROLE = gql`
+  mutation UpdateUserRole($userId: ID!, $role: String!) {
+    updateUserRole(userId: $userId, role: $role) {
+      id
+      name
+      email
+      role
+    }
+  }
+`;
+
+export const ADMIN_LOGIN = gql`
+  mutation AdminLogin($email: String!, $password: String!) {
+    adminLogin(email: $email, password: $password) {
+      token
+      message
+      admin {
+        id
+        name
+        email
+        role
+      }
+    }
+  }
+`;

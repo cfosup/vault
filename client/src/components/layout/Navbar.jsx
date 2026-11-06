@@ -8,6 +8,7 @@ import {
   PieChart,
   Building2,
   Settings,
+  Shield,
   LogOut,
   Moon,
   Sun,
