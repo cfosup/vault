@@ -40,7 +40,7 @@ export const getAuthContext = async ({ req }) => {
     user: decoded,
     userId: decoded.userId,
     orgId: orgId || null,
-    role: role || 'owner',
+    role: role || null,
   };
 };
 

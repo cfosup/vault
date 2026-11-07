@@ -1,15 +1,14 @@
 import { GraphQLError } from 'graphql';
 import { User, Organization, Company, Expense, Income, ChatSession, ActivityLog } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { signToken, comparePassword, hashPassword } from '../../services/authService.js';
+import { signToken, comparePassword } from '../../services/authService.js';
 import { logActivity } from '../../services/activityService.js';
 import { apiMetrics } from '../../services/apiMetricsService.js';
-import { seedSuperAdmin } from '../../services/seedService.js';
 
 const checkAdminAuth = (context) => {
   requireAuth(context);
   const role = (context.role || '').toLowerCase();
-  const isSuper = context.user?.isSuperAdmin || role === 'superadmin' || role === 'owner' || role === 'admin';
+  const isSuper = context.user?.isSuperAdmin === true || role === 'superadmin';
   if (!isSuper) {
     throw new GraphQLError('Access denied. Administrator privileges required.', {
       extensions: { code: 'FORBIDDEN', http: { status: 403 } },
@@ -321,24 +320,18 @@ export const adminResolvers = {
       }
 
       const normalizedEmail = email.toLowerCase().trim();
+      const adminUser = await User.findOne({ email: normalizedEmail, role: 'superadmin' });
+      const isMatch = adminUser ? await comparePassword(password, adminUser.passwordHash) : false;
 
-      // Check strictly against designated Super Admin credentials
-      if (normalizedEmail !== 'ajay@gmail.com' || password !== '12345678') {
+      if (!adminUser || !isMatch) {
         throw new GraphQLError('Invalid Super Admin credentials. Access denied.', {
           extensions: { code: 'INVALID_CREDENTIALS', http: { status: 401 } },
         });
       }
 
-      // Ensure Super Admin user exists in database
-      let adminUser = await User.findOne({ email: normalizedEmail });
-      if (!adminUser) {
-        adminUser = await seedSuperAdmin();
-      } else if (adminUser.role !== 'superadmin') {
-        adminUser.role = 'superadmin';
-        await adminUser.save();
-      }
+      adminUser.lastLogin = new Date();
+      await adminUser.save();
 
-      // Sign Super Admin Token
       const token = signToken({
         userId: adminUser._id.toString(),
         orgId: adminUser.orgId?.toString() || '',
@@ -353,7 +346,7 @@ export const adminResolvers = {
         userEmail: adminUser.email,
         action: 'USER_LOGIN',
         entityType: 'User',
-        description: `Super Admin Ajay logged into Administration Portal`,
+        description: `Super admin ${adminUser.name} signed in to the administration portal`,
       });
 
       return {

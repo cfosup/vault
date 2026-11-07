@@ -1,5 +1,6 @@
 import { Expense, Income, Company, Category } from '../models/index.js';
 import { verifyToken } from '../services/authService.js';
+import { applyDateBounds } from '../utils/dateRange.js';
 
 const authenticateExportReq = (req) => {
   let token = null;
@@ -25,11 +26,7 @@ export const exportExpensesCSV = async (req, res) => {
     const query = { orgId: user.orgId, isDeleted: { $ne: true } };
 
     if (companyId) query.companyId = companyId;
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
+    applyDateBounds(query, startDate, endDate);
 
     const expenses = await Expense.find(query).sort({ date: -1 }).populate('companyId', 'name');
 
@@ -69,11 +66,7 @@ export const exportIncomeCSV = async (req, res) => {
     const query = { orgId: user.orgId, isDeleted: { $ne: true } };
 
     if (companyId) query.companyId = companyId;
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
+    applyDateBounds(query, startDate, endDate);
 
     const incomes = await Income.find(query).sort({ date: -1 }).populate('companyId', 'name');
 

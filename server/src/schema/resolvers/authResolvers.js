@@ -4,6 +4,7 @@ import { hashPassword, comparePassword, signToken } from '../../services/authSer
 import { requireAuth } from '../../middleware/auth.js';
 import { sendWelcomeEmail, sendTestEmail } from '../../services/emailService.js';
 import { logActivity } from '../../services/activityService.js';
+import { verifyFirebaseIdToken } from '../../services/firebaseAuth.js';
 
 const slugify = (text) => {
   return text
@@ -129,6 +130,12 @@ export const authResolvers = {
         });
       }
 
+      if (!user.passwordHash) {
+        throw new GraphQLError('This account uses Google sign-in. Continue with Google to access it.', {
+          extensions: { code: 'INVALID_CREDENTIALS', http: { status: 401 } },
+        });
+      }
+
       const isMatch = await comparePassword(password, user.passwordHash);
       if (!isMatch) {
         throw new GraphQLError('Incorrect password. Please try again.', {
@@ -157,12 +164,10 @@ export const authResolvers = {
         userId: user._id,
         userName: user.name,
         userEmail: user.email,
-        action: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+        action: 'USER_LOGIN',
         entityType: 'User',
         entityId: user._id,
-        description: isNewUser
-          ? `User ${user.name} signed up via Google OAuth`
-          : `User ${user.name} signed in via Google OAuth`,
+        description: `User ${user.name} signed in`,
       });
 
       return {
@@ -173,14 +178,20 @@ export const authResolvers = {
     },
 
     firebaseOAuth: async (_, { input }) => {
-      const { email, name, avatarUrl, uid, orgName } = input;
-      if (!email) {
-        throw new GraphQLError('Email address is required for Firebase OAuth.', {
-          extensions: { code: 'BAD_USER_INPUT' },
+      const { idToken, orgName } = input || {};
+      let verified;
+      try {
+        verified = await verifyFirebaseIdToken(idToken);
+      } catch (error) {
+        throw new GraphQLError(error.message || 'Google sign-in could not be verified.', {
+          extensions: { code: 'UNAUTHENTICATED', http: { status: 401 } },
         });
       }
 
-      const normalizedEmail = email.toLowerCase().trim();
+      const normalizedEmail = verified.email;
+      const name = verified.name;
+      const avatarUrl = verified.picture;
+      const uid = verified.uid;
       let user = await User.findOne({ email: normalizedEmail });
       let org;
       let isNewUser = false;
@@ -189,7 +200,7 @@ export const authResolvers = {
         // Link Firebase UID and update avatar if provided
         if (uid && !user.firebaseUid) user.firebaseUid = uid;
         if (avatarUrl && !user.avatarUrl) user.avatarUrl = avatarUrl;
-        if (!user.authProvider || user.authProvider === 'local') user.authProvider = 'google';
+        if (!user.passwordHash) user.authProvider = 'google';
         user.lastLogin = new Date();
         await user.save();
 

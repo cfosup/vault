@@ -64,42 +64,12 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Admin Reset Database Endpoint (Clean slate for new project)
-app.post('/api/admin/reset-database', async (req, res) => {
-  try {
-    const {
-      Organization,
-      User,
-      Company,
-      Category,
-      PaymentMethod,
-      BudgetBucket,
-      Expense,
-      Income,
-      ChatSession,
-    } = await import('./models/index.js');
-    const { seedCategories } = await import('./services/seedService.js');
-
-    await Promise.all([
-      Expense.deleteMany({}),
-      Income.deleteMany({}),
-      BudgetBucket.deleteMany({}),
-      ChatSession.deleteMany({}),
-      PaymentMethod.deleteMany({}),
-      Company.deleteMany({}),
-      User.deleteMany({}),
-      Organization.deleteMany({}),
-      Category.deleteMany({}),
-    ]);
-
-    await seedCategories();
-    res.status(200).json({
-      success: true,
-      message: 'Database completely wiped and reset to a clean slate.',
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+// Database wipe is disabled so existing accounts and financial records cannot be deleted from this route.
+app.post('/api/admin/reset-database', (req, res) => {
+  res.status(403).json({
+    success: false,
+    error: 'Database reset is disabled so existing accounts and records stay intact.',
+  });
 });
 
 // REST CSV Data Export Endpoints

@@ -2,6 +2,8 @@ import { GraphQLError } from 'graphql';
 import { Income } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { logActivity } from '../../services/activityService.js';
+import { applyDateBounds } from '../../utils/dateRange.js';
+import { assertCompaniesInOrg } from '../../utils/tenant.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -58,11 +60,7 @@ export const incomeResolvers = {
       if (filter.companyId) {
         query.companyId = filter.companyId;
       }
-      if (filter.startDate || filter.endDate) {
-        query.date = {};
-        if (filter.startDate) query.date.$gte = new Date(filter.startDate);
-        if (filter.endDate) query.date.$lte = new Date(filter.endDate);
-      }
+      applyDateBounds(query, filter.startDate, filter.endDate);
       if (filter.search) {
         const searchRegex = { $regex: filter.search, $options: 'i' };
         query.$or = [{ source: searchRegex }, { notes: searchRegex }];
@@ -112,6 +110,8 @@ export const incomeResolvers = {
         });
       }
 
+      await assertCompaniesInOrg(inputs.map((input) => input.companyId), context.orgId);
+
       const documents = inputs.map((input) => {
         if (!input.companyId || !input.source || input.amount === undefined) {
           throw new GraphQLError('companyId, source, and amount are required for each income entry.', {
@@ -147,6 +147,10 @@ export const incomeResolvers = {
 
     updateIncome: async (_, { id, input }, context) => {
       requireAuth(context);
+
+      if (input.companyId) {
+        await assertCompaniesInOrg([input.companyId], context.orgId);
+      }
 
       const updateData = {};
       if (input.companyId) updateData.companyId = input.companyId;

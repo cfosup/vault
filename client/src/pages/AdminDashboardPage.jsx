@@ -45,8 +45,8 @@ export const AdminDashboardPage = () => {
   });
 
   // Admin Login Form State
-  const [loginEmail, setLoginEmail] = useState('ajay@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('12345678');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   // Dashboard Active Tab & Filters

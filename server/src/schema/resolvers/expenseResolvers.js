@@ -3,6 +3,9 @@ import { Expense, Income, BudgetBucket, Company, User } from '../../models/index
 import { requireAuth } from '../../middleware/auth.js';
 import { sendBudgetAlertEmail } from '../../services/emailService.js';
 import { logActivity } from '../../services/activityService.js';
+import { calculateBudgetUsage } from '../../services/budgetService.js';
+import { applyDateBounds } from '../../utils/dateRange.js';
+import { assertCompaniesInOrg } from '../../utils/tenant.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -109,16 +112,21 @@ export const expenseResolvers = {
         query.paymentMethodId = filter.paymentMethodId;
       }
       if (filter.incomeId) {
-        query.incomeId = filter.incomeId;
+        query.$and = [
+          ...(query.$and || []),
+          {
+            $or: [
+              { incomeId: filter.incomeId },
+              { incomeIds: filter.incomeId },
+              { 'incomeAllocations.incomeId': filter.incomeId },
+            ],
+          },
+        ];
       }
       if (filter.vendor) {
         query.vendor = { $regex: filter.vendor, $options: 'i' };
       }
-      if (filter.startDate || filter.endDate) {
-        query.date = {};
-        if (filter.startDate) query.date.$gte = new Date(filter.startDate);
-        if (filter.endDate) query.date.$lte = new Date(filter.endDate);
-      }
+      applyDateBounds(query, filter.startDate, filter.endDate);
       if (filter.search) {
         const searchRegex = { $regex: filter.search, $options: 'i' };
         query.$or = [
@@ -190,6 +198,8 @@ export const expenseResolvers = {
           extensions: { code: 'BAD_USER_INPUT' },
         });
       }
+
+      await assertCompaniesInOrg(inputs.map((input) => input.companyId), context.orgId);
 
       // Validate all provided incomeIds strictly against orgId and companyId
       const incomeIdsToValidate = [
@@ -357,19 +367,9 @@ export const expenseResolvers = {
             const user = await User.findById(context.userId);
             if (user?.email) {
               for (const bucket of buckets) {
-                const totalSpentAgg = await Expense.aggregate([
-                  {
-                    $match: {
-                      orgId: bucket.orgId,
-                      companyId: bucket.companyId,
-                      categoryId: bucket.categoryId,
-                      isDeleted: { $ne: true },
-                    },
-                  },
-                  { $group: { _id: null, total: { $sum: '$amount' } } },
-                ]);
-                const totalSpent = totalSpentAgg[0]?.total || 0;
-                const percent = Math.round((totalSpent / bucket.limitAmount) * 100);
+                const usage = await calculateBudgetUsage(bucket);
+                const totalSpent = usage.usedAmount || 0;
+                const percent = Math.round(usage.percentUsed || 0);
                 const threshold = bucket.alertThreshold || 80;
 
                 if (percent >= threshold) {
@@ -408,6 +408,10 @@ export const expenseResolvers = {
         throw new GraphQLError('Expense not found', {
           extensions: { code: 'NOT_FOUND', http: { status: 404 } },
         });
+      }
+
+      if (input.companyId) {
+        await assertCompaniesInOrg([input.companyId], context.orgId);
       }
 
       const updateData = { ...input, updatedBy: context.userId };

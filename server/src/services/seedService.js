@@ -463,13 +463,22 @@ export const seedCompanyCoreCategories = async (orgId, companyId) => {
 };
 
 /**
- * Ensures the dedicated Super Admin account exists for platform administration.
- * Credentials: ajay@gmail.com / 12345678
+ * Creates the platform super admin only when that email does not exist.
+ * Existing users, roles, and passwords are left unchanged.
  */
 export const seedSuperAdmin = async () => {
   try {
-    const adminEmail = 'ajay@gmail.com';
-    let adminUser = await User.findOne({ email: adminEmail });
+    const adminEmail = (process.env.SUPER_ADMIN_EMAIL || 'ajay@gmail.com').toLowerCase().trim();
+    const existingUser = await User.findOne({ email: adminEmail });
+    if (existingUser) {
+      return existingUser;
+    }
+
+    const initialPassword = process.env.SUPER_ADMIN_PASSWORD;
+    if (!initialPassword) {
+      console.log('[Seed] Super admin account is missing and SUPER_ADMIN_PASSWORD is not set. Skipping creation.');
+      return null;
+    }
 
     let adminOrg = await Organization.findOne({ slug: 'vault-master-admin' });
     if (!adminOrg) {
@@ -480,27 +489,16 @@ export const seedSuperAdmin = async () => {
       });
     }
 
-    const hashedPassword = await hashPassword('12345678');
-
-    if (!adminUser) {
-      adminUser = await User.create({
-        orgId: adminOrg._id,
-        name: 'Ajay (Platform Admin)',
-        email: adminEmail,
-        passwordHash: hashedPassword,
-        role: 'superadmin',
-        isEmailVerified: true,
-        lastLogin: new Date(),
-      });
-      console.log(`[Seed] Super Admin user ${adminEmail} created successfully.`);
-    } else {
-      // Ensure role is superadmin and password is set to 12345678
-      adminUser.role = 'superadmin';
-      adminUser.passwordHash = hashedPassword;
-      await adminUser.save();
-      console.log(`[Seed] Super Admin user ${adminEmail} verified.`);
-    }
-
+    const adminUser = await User.create({
+      orgId: adminOrg._id,
+      name: 'Platform Admin',
+      email: adminEmail,
+      passwordHash: await hashPassword(initialPassword),
+      role: 'superadmin',
+      isEmailVerified: true,
+      lastLogin: new Date(),
+    });
+    console.log(`[Seed] Super admin user ${adminEmail} created.`);
     return adminUser;
   } catch (error) {
     console.error('[Seed Error] Failed to seed Super Admin:', error.message);

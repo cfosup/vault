@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
 import { Expense, Income, Company } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { applyDateBounds } from '../../utils/dateRange.js';
 
 export const dashboardResolvers = {
   Query: {
@@ -17,13 +18,8 @@ export const dashboardResolvers = {
         matchExpense.companyId = compObjectId;
         matchIncome.companyId = compObjectId;
       }
-      if (filter.startDate || filter.endDate) {
-        const dateMatch = {};
-        if (filter.startDate) dateMatch.$gte = new Date(filter.startDate);
-        if (filter.endDate) dateMatch.$lte = new Date(filter.endDate);
-        matchExpense.date = dateMatch;
-        matchIncome.date = dateMatch;
-      }
+      applyDateBounds(matchExpense, filter.startDate, filter.endDate);
+      applyDateBounds(matchIncome, filter.startDate, filter.endDate);
 
       const [expenseAgg, incomeAgg, topCatAgg, topVenAgg] = await Promise.all([
         Expense.aggregate([
@@ -73,11 +69,7 @@ export const dashboardResolvers = {
       const match = { orgId: orgObjectId, isDeleted: { $ne: true } };
 
       if (filter.companyId) match.companyId = new mongoose.Types.ObjectId(filter.companyId);
-      if (filter.startDate || filter.endDate) {
-        match.date = {};
-        if (filter.startDate) match.date.$gte = new Date(filter.startDate);
-        if (filter.endDate) match.date.$lte = new Date(filter.endDate);
-      }
+      applyDateBounds(match, filter.startDate, filter.endDate);
 
       const results = await Expense.aggregate([
         { $match: match },
@@ -227,11 +219,7 @@ export const dashboardResolvers = {
       const match = { orgId: orgObjectId, isDeleted: { $ne: true }, vendor: { $ne: '' } };
 
       if (filter.companyId) match.companyId = new mongoose.Types.ObjectId(filter.companyId);
-      if (filter.startDate || filter.endDate) {
-        match.date = {};
-        if (filter.startDate) match.date.$gte = new Date(filter.startDate);
-        if (filter.endDate) match.date.$lte = new Date(filter.endDate);
-      }
+      applyDateBounds(match, filter.startDate, filter.endDate);
 
       const results = await Expense.aggregate([
         { $match: match },
@@ -259,11 +247,7 @@ export const dashboardResolvers = {
       const match = { orgId: orgObjectId, isDeleted: { $ne: true } };
 
       if (filter.companyId) match.companyId = new mongoose.Types.ObjectId(filter.companyId);
-      if (filter.startDate || filter.endDate) {
-        match.date = {};
-        if (filter.startDate) match.date.$gte = new Date(filter.startDate);
-        if (filter.endDate) match.date.$lte = new Date(filter.endDate);
-      }
+      applyDateBounds(match, filter.startDate, filter.endDate);
 
       const results = await Expense.aggregate([
         { $match: match },
@@ -301,13 +285,8 @@ export const dashboardResolvers = {
         incomeMatch.companyId = compObjectId;
       }
 
-      if (filter.startDate || filter.endDate) {
-        const dateMatch = {};
-        if (filter.startDate) dateMatch.$gte = new Date(filter.startDate);
-        if (filter.endDate) dateMatch.$lte = new Date(filter.endDate);
-        expenseMatch.date = dateMatch;
-        incomeMatch.date = dateMatch;
-      }
+      applyDateBounds(expenseMatch, filter.startDate, filter.endDate);
+      applyDateBounds(incomeMatch, filter.startDate, filter.endDate);
 
       const [expenseByComp, incomeByComp] = await Promise.all([
         Expense.aggregate([

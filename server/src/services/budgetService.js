@@ -1,4 +1,34 @@
 import { Expense } from '../models/Expense.js';
+import { inclusiveEndDate } from '../utils/dateRange.js';
+
+const periodWindow = (period, now = new Date()) => {
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+
+  if (period === 'yearly') {
+    return {
+      start: new Date(Date.UTC(year, 0, 1)),
+      end: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
+    };
+  }
+
+  if (period === 'quarterly') {
+    const quarterStart = Math.floor(month / 3) * 3;
+    return {
+      start: new Date(Date.UTC(year, quarterStart, 1)),
+      end: new Date(Date.UTC(year, quarterStart + 3, 0, 23, 59, 59, 999)),
+    };
+  }
+
+  if (period === 'monthly') {
+    return {
+      start: new Date(Date.UTC(year, month, 1)),
+      end: new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)),
+    };
+  }
+
+  return null;
+};
 
 export const calculateBudgetUsage = async (bucket) => {
   const query = {
@@ -11,7 +41,12 @@ export const calculateBudgetUsage = async (bucket) => {
   if (bucket.startDate || bucket.endDate) {
     query.date = {};
     if (bucket.startDate) query.date.$gte = new Date(bucket.startDate);
-    if (bucket.endDate) query.date.$lte = new Date(bucket.endDate);
+    if (bucket.endDate) query.date.$lte = inclusiveEndDate(bucket.endDate);
+  } else {
+    const window = periodWindow(bucket.period);
+    if (window) {
+      query.date = { $gte: window.start, $lte: window.end };
+    }
   }
 
   const result = await Expense.aggregate([

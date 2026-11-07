@@ -30,6 +30,24 @@ async function runUnitTests() {
       assert(err.extensions?.code === 'FORBIDDEN', 'Member role correctly rejected with FORBIDDEN');
     }
     assert(threw, 'adminDashboard threw error for member role');
+
+    threw = false;
+    try {
+      await adminResolvers.Query.adminDashboard({}, {}, { userId: '123', orgId: 'org1', role: 'owner' });
+    } catch (err) {
+      threw = true;
+      assert(err.extensions?.code === 'FORBIDDEN', 'Owner role cannot open the admin dashboard');
+    }
+    assert(threw, 'adminDashboard threw error for owner role');
+
+    threw = false;
+    try {
+      await adminResolvers.Query.adminDashboard({}, {}, { userId: '123', orgId: 'org1', role: 'admin' });
+    } catch (err) {
+      threw = true;
+      assert(err.extensions?.code === 'FORBIDDEN', 'Company admin role cannot open the admin dashboard');
+    }
+    assert(threw, 'adminDashboard threw error for admin role');
   } catch (e) {
     console.error(e);
     failCount++;
@@ -56,7 +74,7 @@ async function runUnitTests() {
     console.log('\n[Test 3] Testing invalid role parameter in updateUserRole...');
     let threw = false;
     try {
-      await adminResolvers.Mutation.updateUserRole({}, { userId: '123', role: 'superhero' }, { userId: 'admin1', role: 'owner' });
+      await adminResolvers.Mutation.updateUserRole({}, { userId: '123', role: 'superhero' }, { userId: 'admin1', role: 'superadmin', user: { isSuperAdmin: true } });
     } catch (err) {
       threw = true;
       assert(err.extensions?.code === 'BAD_USER_INPUT', 'Invalid role name correctly rejected with BAD_USER_INPUT');

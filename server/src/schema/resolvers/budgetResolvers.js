@@ -2,6 +2,7 @@ import { GraphQLError } from 'graphql';
 import { BudgetBucket, Category } from '../../models/index.js';
 import { calculateBudgetUsage } from '../../services/budgetService.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { assertCompaniesInOrg } from '../../utils/tenant.js';
 
 export const budgetResolvers = {
   Query: {
@@ -54,6 +55,8 @@ export const budgetResolvers = {
           extensions: { code: 'BAD_USER_INPUT' },
         });
       }
+
+      await assertCompaniesInOrg([companyId], context.orgId);
 
       let categoryName = input.categoryName;
       if (!categoryName) {

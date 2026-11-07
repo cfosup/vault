@@ -19,7 +19,6 @@ import {
   Wallet,
   Smartphone,
   AlertTriangle,
-  RotateCcw,
   Mail,
   Send,
   Bell,
@@ -42,10 +41,6 @@ export const SettingsPage = () => {
   const [pmToDelete, setPmToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Database reset state
-  const [resettingDb, setResettingDb] = useState(false);
-  const [resetMsg, setResetMsg] = useState('');
-
   // Resend Email Test state
   const [testEmailStatus, setTestEmailStatus] = useState(null);
   const [sendTestEmailMutation, { loading: sendingTestEmail }] = useMutation(SEND_TEST_EMAIL);
@@ -55,35 +50,6 @@ export const SettingsPage = () => {
   const [deletePaymentMethod] = useMutation(DELETE_PAYMENT_METHOD);
 
   const paymentMethods = data?.paymentMethods || [];
-
-  const handleResetDatabase = async () => {
-    if (!window.confirm('WARNING: Are you sure you want to completely clear the database? This will delete all financial entries, companies, and users, returning Vault to a fresh project state.')) {
-      return;
-    }
-    setResettingDb(true);
-    setResetMsg('');
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${apiUrl}/api/admin/reset-database`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const result = await res.json();
-      if (result.success) {
-        setResetMsg('Database successfully reset to a clean slate! Redirecting to login...');
-        setTimeout(() => {
-          useAuthStore.getState().logout();
-          window.location.href = '/login';
-        }, 1500);
-      } else {
-        alert('Error: ' + result.error);
-      }
-    } catch (err) {
-      alert('Failed to connect to reset endpoint: ' + err.message);
-    } finally {
-      setResettingDb(false);
-    }
-  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -727,65 +693,6 @@ export const SettingsPage = () => {
             </div>
           )}
         </div>
-
-      {/* Danger Zone: Developer Reset (Local Development Only) */}
-      {import.meta.env.DEV && (
-        <div
-          className="card"
-          style={{
-            border: '1px solid color-mix(in srgb, var(--destructive) 40%, transparent)',
-            backgroundColor: 'color-mix(in srgb, var(--destructive) 4%, transparent)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--danger-bg)',
-                color: 'var(--danger)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AlertTriangle size={20} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--danger)' }}>Danger Zone: Reset Database</h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Wipe all transactions, companies, and user accounts to start completely fresh as a new project
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '580px' }}>
-              This action will clear all expenses, revenues, budget caps, payment methods, and user records. Core default categories will be safely reseeded.
-            </p>
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={handleResetDatabase}
-              disabled={resettingDb}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-            >
-              <RotateCcw size={15} />
-              {resettingDb ? 'Resetting...' : 'Reset Complete Database'}
-            </button>
-          </div>
-
-          {resetMsg && (
-            <div style={{ padding: '0.55rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--success-bg)', color: 'var(--success)', fontSize: '0.825rem' }}>
-              {resetMsg}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
