@@ -265,6 +265,9 @@ export const SettingsPage = () => {
                     <div>
                       <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{pm.name}</h4>
                       <span className="badge badge-neutral" style={{ textTransform: 'uppercase', fontSize: '0.65rem', marginTop: '0.2rem' }}>{pm.type}</span>
+                      {pm.createdByName && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>Added by {pm.createdByName}</div>
+                      )}
                     </div>
                   </div>
                   {canManagePayments && (

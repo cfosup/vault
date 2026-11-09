@@ -36,6 +36,9 @@ export const OrgAccessPanel = () => {
   const [noticeOk, setNoticeOk] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [savingAccess, setSavingAccess] = useState(false);
   const [inviteMember, { loading: inviting }] = useMutation(INVITE_MEMBER);
   const [updateMember] = useMutation(UPDATE_MEMBER_ACCESS);
   const [removeMember] = useMutation(REMOVE_MEMBER);
@@ -44,6 +47,56 @@ export const OrgAccessPanel = () => {
   const [stopRecurring] = useMutation(STOP_RECURRING);
 
   if (!owner) return null;
+
+  const startEdit = (member) => {
+    const workspace = !member.accessScope || member.accessScope === 'workspace';
+    setEditingId(member.id);
+    setDraft({
+      accessScope: workspace ? 'workspace' : 'modules',
+      expenses: workspace || (member.modules || []).includes('expenses'),
+      income: workspace || (member.modules || []).includes('income'),
+      companyIds: [...(member.companyIds || [])],
+      canDeleteExpenses: !!member.canDeleteExpenses,
+      canDeleteIncome: !!member.canDeleteIncome,
+    });
+    setNotice('');
+  };
+
+  const saveAccess = async (member) => {
+    const modules = [];
+    if (draft.expenses) modules.push('expenses');
+    if (draft.income) modules.push('income');
+    if (draft.accessScope === 'modules' && modules.length === 0) {
+      setNotice('Choose expenses, income, or both.');
+      setNoticeOk(false);
+      return;
+    }
+    setSavingAccess(true);
+    try {
+      await updateMember({
+        variables: {
+          userId: member.id,
+          input: {
+            accessScope: draft.accessScope,
+            modules: draft.accessScope === 'workspace' ? ['expenses', 'income'] : modules,
+            companyIds: draft.companyIds,
+            canDeleteExpenses: draft.canDeleteExpenses,
+            canDeleteIncome: draft.canDeleteIncome,
+          },
+        },
+      });
+      setNotice(`Updated access for ${member.name || member.email}.`);
+      setNoticeOk(true);
+      setEditingId(null);
+      setDraft(null);
+      refetch();
+    } catch (err) {
+      setNotice(err.message || 'Could not update this person.');
+      setNoticeOk(false);
+    } finally {
+      setSavingAccess(false);
+    }
+  };
   const companies = companyData?.companies || [];
   const members = (data?.orgMembers || []).filter((member) => member.role !== 'owner');
   const invites = data?.pendingInvites || [];
@@ -187,35 +240,82 @@ export const OrgAccessPanel = () => {
           {members.length === 0 ? (
             <p className="field-hint">You are the only person here. An invite adds someone to this same organization.</p>
           ) : members.map((member) => (
-            <div key={member.id} className="person-row">
-              <div>
-                <strong>{member.name || member.email}</strong>
-                <span>{member.email} · {accessLabel(member)} · {companyNames(member.companyIds)}</span>
+            <div key={member.id} className="person-card">
+              <div className="person-row">
+                <div>
+                  <strong>{member.name || member.email}</strong>
+                  <span>{member.email} · {accessLabel(member)} · {companyNames(member.companyIds)}</span>
+                </div>
+                <div className="person-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => (editingId === member.id ? setEditingId(null) : startEdit(member))}>
+                    {editingId === member.id ? 'Close' : 'Change access'}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={async () => { await removeMember({ variables: { userId: member.id } }); refetch(); }}>Remove</button>
+                </div>
               </div>
-              <div className="person-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  onClick={async () => {
-                    await updateMember({
-                      variables: {
-                        userId: member.id,
-                        input: {
-                          accessScope: member.accessScope || 'workspace',
-                          modules: member.modules,
-                          companyIds: member.companyIds,
-                          canDeleteExpenses: !member.canDeleteExpenses,
-                          canDeleteIncome: member.canDeleteIncome,
-                        },
-                      },
-                    });
-                    refetch();
-                  }}
-                >
-                  {member.canDeleteExpenses ? 'Expense delete on' : 'Allow expense delete'}
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" onClick={async () => { await removeMember({ variables: { userId: member.id } }); refetch(); }}>Remove</button>
-              </div>
+              {editingId === member.id && draft && (
+                <div className="access-editor">
+                  <div className="form-group">
+                    <span className="form-label">What they can open</span>
+                    <div className="scope-switch" role="group">
+                      <button type="button" className={draft.accessScope === 'workspace' ? 'is-on' : ''} onClick={() => setDraft({ ...draft, accessScope: 'workspace' })}>Whole workspace</button>
+                      <button type="button" className={draft.accessScope === 'modules' ? 'is-on' : ''} onClick={() => setDraft({ ...draft, accessScope: 'modules' })}>Only some areas</button>
+                    </div>
+                  </div>
+                  {draft.accessScope === 'modules' && (
+                    <div className="choice-row">
+                      <label className={`choice-chip ${draft.expenses ? 'is-on' : ''}`}>
+                        <input type="checkbox" checked={draft.expenses} onChange={(event) => setDraft({ ...draft, expenses: event.target.checked })} />
+                        Expenses
+                      </label>
+                      <label className={`choice-chip ${draft.income ? 'is-on' : ''}`}>
+                        <input type="checkbox" checked={draft.income} onChange={(event) => setDraft({ ...draft, income: event.target.checked })} />
+                        Income
+                      </label>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <span className="form-label">Companies</span>
+                    <div className="choice-row">
+                      {companies.map((company) => {
+                        const on = draft.companyIds.includes(company.id);
+                        return (
+                          <label key={company.id} className={`choice-chip ${on ? 'is-on' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={(event) => {
+                                const companyIds = event.target.checked
+                                  ? [...draft.companyIds, company.id]
+                                  : draft.companyIds.filter((id) => id !== company.id);
+                                setDraft({ ...draft, companyIds });
+                              }}
+                            />
+                            {company.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="field-hint">Leave every company unticked to allow all of them. Tick a company to limit them to it.</p>
+                  </div>
+                  <div className="form-group">
+                    <span className="form-label">Delete rights</span>
+                    <div className="choice-row">
+                      <label className={`choice-chip ${draft.canDeleteExpenses ? 'is-on' : ''}`}>
+                        <input type="checkbox" checked={draft.canDeleteExpenses} onChange={(event) => setDraft({ ...draft, canDeleteExpenses: event.target.checked })} />
+                        Can delete expenses
+                      </label>
+                      <label className={`choice-chip ${draft.canDeleteIncome ? 'is-on' : ''}`}>
+                        <input type="checkbox" checked={draft.canDeleteIncome} onChange={(event) => setDraft({ ...draft, canDeleteIncome: event.target.checked })} />
+                        Can delete income
+                      </label>
+                    </div>
+                  </div>
+                  <button className="btn btn-primary btn-sm" type="button" disabled={savingAccess} onClick={() => saveAccess(member)}>
+                    {savingAccess ? 'Saving...' : 'Save access'}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

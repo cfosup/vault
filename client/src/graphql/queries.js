@@ -187,6 +187,7 @@ export const GET_PAYMENT_METHODS = gql`
       type
       accountNumber
       isActive
+      createdByName
       createdAt
     }
   }

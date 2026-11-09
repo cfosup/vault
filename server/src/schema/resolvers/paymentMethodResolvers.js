@@ -35,6 +35,7 @@ export const paymentMethodResolvers = {
   Mutation: {
     createPaymentMethod: async (_, { input }, context) => {
       await requirePaymentWriter(context);
+      const actor = await loadActor(context);
       const { name, type, accountNumber, isActive } = input;
 
       if (!name || !name.trim()) {
@@ -49,6 +50,8 @@ export const paymentMethodResolvers = {
         type: type || 'bank',
         accountNumber: (accountNumber || '').trim(),
         isActive: isActive !== undefined ? isActive : true,
+        createdBy: actor._id,
+        createdByName: actor.name || actor.email || '',
       });
     },
 

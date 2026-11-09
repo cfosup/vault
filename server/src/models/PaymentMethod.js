@@ -27,6 +27,16 @@ const paymentMethodSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    createdByName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

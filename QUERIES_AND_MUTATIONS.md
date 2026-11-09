@@ -45,7 +45,7 @@ This file lists every operation in the schema. There are **39 queries** and **42
 | 8 | `paymentMethods` | `[PaymentMethod]` | Signed in |
 | 9 | `paymentMethod(id: ID!)` | `PaymentMethod` | Signed in |
 
-`PaymentMethodInput`: `name`, `type` (`cash`, `bank`, `card`, `upi`, `other`), `accountNumber`, `isActive`.
+`PaymentMethod` also returns `createdByName`, the person who added it. `PaymentMethodInput`: `name`, `type` (`cash`, `bank`, `card`, `upi`, `other`), `accountNumber`, `isActive`.
 
 ### Expenses — `expense.graphql`
 

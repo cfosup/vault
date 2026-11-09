@@ -123,7 +123,7 @@ Indexes include `orgId + companyId + date`, `orgId + isDeleted`, and the income 
 
 `server/src/models/PaymentMethod.js`
 
-`orgId`, `name`, `type` (`cash`, `bank`, `card`, `upi`, `other`), `accountNumber`, `isActive`.
+`orgId`, `name`, `type` (`cash`, `bank`, `card`, `upi`, `other`), `accountNumber`, `isActive`, `createdBy`, `createdByName`. The name is the person who added the account, so the owner can see which member created it.
 
 ## BudgetBucket
 

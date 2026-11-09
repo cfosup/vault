@@ -1222,7 +1222,7 @@ export const ExpensesPage = () => {
                     <option value="">Select Payment Method</option>
                     {paymentMethods.map((pm) => (
                       <option key={pm.id} value={pm.id}>
-                        {pm.name} ({pm.type})
+                        {pm.name} ({pm.type}){pm.createdByName ? ` · ${pm.createdByName}` : ''}
                       </option>
                     ))}
                   </select>
@@ -1666,7 +1666,7 @@ export const ExpensesPage = () => {
                         <option value="">Payment</option>
                         {paymentMethods.map((pm) => (
                           <option key={pm.id} value={pm.id}>
-                            {pm.name}
+                            {pm.name}{pm.createdByName ? ` · ${pm.createdByName}` : ''}
                           </option>
                         ))}
                       </select>

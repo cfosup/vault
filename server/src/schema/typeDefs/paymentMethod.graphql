@@ -5,6 +5,7 @@ type PaymentMethod {
   type: String!
   accountNumber: String
   isActive: Boolean!
+  createdByName: String
   createdAt: String!
 }
 
