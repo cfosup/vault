@@ -17,7 +17,17 @@ export const paymentMethodResolvers = {
   Query: {
     paymentMethods: async (_, __, context) => {
       requireAuth(context);
-      return PaymentMethod.find({ orgId: context.orgId }).sort({ name: 1 });
+      const rows = await PaymentMethod.find({ orgId: context.orgId }).sort({ name: 1 });
+      return rows.map((row) => ({
+        id: row._id.toString(),
+        orgId: row.orgId?.toString(),
+        name: row.name,
+        type: row.type || 'bank',
+        accountNumber: row.accountNumber || '',
+        isActive: row.isActive !== false,
+        createdByName: row.createdByName || null,
+        createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date(0).toISOString(),
+      }));
     },
 
     paymentMethod: async (_, { id }, context) => {

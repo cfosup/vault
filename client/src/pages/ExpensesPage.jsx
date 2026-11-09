@@ -17,7 +17,8 @@ import {
   TrendingUp,
   DollarSign,
 } from 'lucide-react';
-import { GET_EXPENSES, GET_EXPENSE, GET_COMPANIES, GET_CATEGORIES, GET_PAYMENT_METHODS, GET_INCOMES } from '../graphql/queries';
+import { GET_EXPENSES, GET_EXPENSE, GET_COMPANIES, GET_CATEGORIES, GET_INCOMES } from '../graphql/queries';
+import { usePaymentMethods } from '../hooks/usePaymentMethods';
 import { VendorField } from '../components/common/VendorField';
 import { canWriteModule, canDeleteKind } from '../utils/access';
 import { CREATE_EXPENSES, UPDATE_EXPENSE, DELETE_EXPENSE, RESTORE_EXPENSE, CREATE_CATEGORY, ADD_SUBCATEGORY } from '../graphql/mutations';
@@ -121,7 +122,7 @@ export const ExpensesPage = () => {
   const { data: catData, refetch: refetchCategories } = useQuery(GET_CATEGORIES, {
     variables: { companyId: activeCompanyId || null },
   });
-  const { data: pmData } = useQuery(GET_PAYMENT_METHODS);
+  const { paymentMethods } = usePaymentMethods();
   const { data: allIncomesData, refetch: refetchIncomes } = useQuery(GET_INCOMES, {
     variables: { limit: 500 },
     fetchPolicy: 'cache-and-network',
@@ -130,7 +131,6 @@ export const ExpensesPage = () => {
   const companies = compData?.companies || [];
   const activeCompany = companies.find((c) => c.id === activeCompanyId);
   const defaultCategories = catData?.categories || [];
-  const paymentMethods = pmData?.paymentMethods || [];
   const allIncomes = allIncomesData?.incomes?.incomes || [];
 
   const { data, loading, refetch } = useQuery(GET_EXPENSES, {

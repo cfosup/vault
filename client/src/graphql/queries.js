@@ -193,6 +193,19 @@ export const GET_PAYMENT_METHODS = gql`
   }
 `;
 
+export const GET_PAYMENT_METHODS_BASIC = gql`
+  query GetPaymentMethodsBasic {
+    paymentMethods {
+      id
+      name
+      type
+      accountNumber
+      isActive
+      createdAt
+    }
+  }
+`;
+
 export const GET_EXPENSES = gql`
   query GetExpenses($filter: ExpenseFilter, $page: Int, $limit: Int) {
     expenses(filter: $filter, page: $page, limit: $limit) {

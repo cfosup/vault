@@ -17,7 +17,8 @@ import {
   Wallet,
   Smartphone,
 } from 'lucide-react';
-import { GET_PAYMENT_METHODS, GET_PAYMENT_METHOD, GET_ME, GET_MY_ACTIVITY } from '../graphql/queries';
+import { GET_PAYMENT_METHOD, GET_ME, GET_MY_ACTIVITY } from '../graphql/queries';
+import { usePaymentMethods } from '../hooks/usePaymentMethods';
 import { CREATE_PAYMENT_METHOD, UPDATE_PAYMENT_METHOD, DELETE_PAYMENT_METHOD } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -36,7 +37,7 @@ export const SettingsPage = () => {
   const [pmToDelete, setPmToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { data, loading, refetch } = useQuery(GET_PAYMENT_METHODS);
+  const { paymentMethods, refetch } = usePaymentMethods();
   const { data: meData } = useQuery(GET_ME);
   const account = meData?.me || user;
   const moduleOnly = account?.accessScope === 'modules';
@@ -50,8 +51,6 @@ export const SettingsPage = () => {
   const [deletePaymentMethod] = useMutation(DELETE_PAYMENT_METHOD);
   const [loadPaymentMethod] = useLazyQuery(GET_PAYMENT_METHOD, { fetchPolicy: 'network-only' });
   const activityLogs = activityData?.myActivityLogs || [];
-
-  const paymentMethods = data?.paymentMethods || [];
 
   const handleCreate = async (e) => {
     e.preventDefault();
