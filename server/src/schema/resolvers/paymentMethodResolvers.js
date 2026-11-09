@@ -1,6 +1,6 @@
 import { GraphQLError } from 'graphql';
 import { PaymentMethod } from '../../models/index.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireWriter } from '../../middleware/auth.js';
 
 export const paymentMethodResolvers = {
   Query: {
@@ -23,7 +23,7 @@ export const paymentMethodResolvers = {
 
   Mutation: {
     createPaymentMethod: async (_, { input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const { name, type, accountNumber, isActive } = input;
 
       if (!name || !name.trim()) {
@@ -42,7 +42,7 @@ export const paymentMethodResolvers = {
     },
 
     updatePaymentMethod: async (_, { id, input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const updateData = {};
       if (input.name !== undefined) updateData.name = input.name.trim();
       if (input.type !== undefined) updateData.type = input.type;
@@ -65,7 +65,7 @@ export const paymentMethodResolvers = {
     },
 
     deletePaymentMethod: async (_, { id }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const result = await PaymentMethod.findOneAndDelete({ _id: id, orgId: context.orgId });
       return !!result;
     },

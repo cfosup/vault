@@ -18,6 +18,11 @@ type User {
   avatarUrl: String
   authProvider: String
   createdAt: String!
+  accessScope: String
+  modules: [String!]!
+  companyIds: [ID!]!
+  canDeleteExpenses: Boolean!
+  canDeleteIncome: Boolean!
 }
 
 type AuthPayload {
@@ -49,9 +54,19 @@ type EmailResult {
   messageId: String
 }
 
+type ActivityLogEntry {
+  id: ID!
+  action: String!
+  entityType: String
+  description: String!
+  companyName: String
+  createdAt: String!
+}
+
 type Query {
   me: User!
   checkEmailExists(email: String!): Boolean!
+  myActivityLogs(limit: Int): [ActivityLogEntry!]!
 }
 
 type Mutation {
@@ -59,4 +74,6 @@ type Mutation {
   login(email: String!, password: String!): AuthPayload!
   firebaseOAuth(input: FirebaseOAuthInput!): AuthPayload!
   sendTestEmail(email: String!): EmailResult!
+  requestPasswordReset(email: String!): EmailResult!
+  resetPassword(token: String!, password: String!): EmailResult!
 }

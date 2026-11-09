@@ -1,11 +1,11 @@
 import { GraphQLError } from 'graphql';
-import { Expense, Income, BudgetBucket, Company, User } from '../../models/index.js';
+import { Expense, Income, BudgetBucket, Company, User, RecurringSchedule } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { sendBudgetAlertEmail } from '../../services/emailService.js';
+import { notifyBudgetThresholds } from '../../services/scheduleService.js';
 import { logActivity } from '../../services/activityService.js';
-import { calculateBudgetUsage } from '../../services/budgetService.js';
 import { applyDateBounds } from '../../utils/dateRange.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
+import { assertRead, assertWrite, assertDelete, assertMonthOpen, applyCompanyScope, rememberVendor, nextMonthOnDay } from '../../utils/access.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -95,16 +95,15 @@ export const expenseResolvers = {
 
   Query: {
     expenses: async (_, { filter = {}, page = 1, limit = 20 }, context) => {
-      requireAuth(context);
+      const access = await assertRead(context, 'expenses');
 
       const query = {
         orgId: context.orgId,
-        isDeleted: { $ne: true },
+        isDeleted: filter.includeDeleted ? true : { $ne: true },
       };
 
-      if (filter.companyId) {
-        query.companyId = filter.companyId;
-      }
+      if (filter.companyId) query.companyId = filter.companyId;
+      applyCompanyScope(query, access, filter.companyId);
       if (filter.categoryId) {
         query.categoryId = filter.categoryId;
       }
@@ -180,18 +179,20 @@ export const expenseResolvers = {
     },
 
     expensesByIncome: async (_, { incomeId }, context) => {
-      requireAuth(context);
-      return Expense.find({
+      const access = await assertRead(context, 'expenses');
+      const query = {
         orgId: context.orgId,
         $or: [{ incomeId }, { incomeIds: incomeId }],
         isDeleted: { $ne: true },
-      }).sort({ date: -1, createdAt: -1 });
+      };
+      applyCompanyScope(query, access);
+      return Expense.find(query).sort({ date: -1, createdAt: -1 });
     },
   },
 
   Mutation: {
     createExpenses: async (_, { inputs }, context) => {
-      requireAuth(context);
+      await assertWrite(context, 'expenses');
 
       if (!inputs || !Array.isArray(inputs) || inputs.length === 0) {
         throw new GraphQLError('At least one expense must be provided.', {
@@ -200,6 +201,10 @@ export const expenseResolvers = {
       }
 
       await assertCompaniesInOrg(inputs.map((input) => input.companyId), context.orgId);
+      for (const input of inputs) {
+        await assertWrite(context, 'expenses', input.companyId);
+        await assertMonthOpen(context.orgId, parseDateInput(input.date));
+      }
 
       // Validate all provided incomeIds strictly against orgId and companyId
       const incomeIdsToValidate = [
@@ -354,50 +359,46 @@ export const expenseResolvers = {
         metadata: { count: createdExpenses.length },
       });
 
-      // Asynchronously evaluate budget limits and dispatch Resend email alerts
-      (async () => {
-        try {
-          const catIds = [...new Set(documents.map((d) => d.categoryId))];
-          const buckets = await BudgetBucket.find({
-            orgId: context.orgId,
-            categoryId: { $in: catIds },
-          });
+      for (const expense of createdExpenses) {
+        await rememberVendor({
+          orgId: context.orgId,
+          categoryId: expense.categoryId,
+          subcategory: expense.subcategory,
+          name: expense.vendor,
+        });
+      }
 
-          if (buckets.length > 0) {
-            const user = await User.findById(context.userId);
-            if (user?.email) {
-              for (const bucket of buckets) {
-                const usage = await calculateBudgetUsage(bucket);
-                const totalSpent = usage.usedAmount || 0;
-                const percent = Math.round(usage.percentUsed || 0);
-                const threshold = bucket.alertThreshold || 80;
+      if (inputs.length === 1 && inputs[0].makeRecurring && createdExpenses[0]) {
+        const first = createdExpenses[0];
+        const runDate = first.date instanceof Date ? first.date : new Date(first.date);
+        await RecurringSchedule.create({
+          orgId: context.orgId,
+          companyId: first.companyId,
+          createdBy: context.userId,
+          kind: 'expense',
+          dayOfMonth: runDate.getUTCDate(),
+          nextRunAt: nextMonthOnDay(runDate, runDate.getUTCDate()),
+          payload: {
+            categoryId: first.categoryId,
+            categoryName: first.categoryName,
+            subcategory: first.subcategory,
+            amount: first.amount,
+            vendor: first.vendor,
+            paymentMethodId: first.paymentMethodId,
+            paymentMethodName: first.paymentMethodName,
+            notes: first.notes,
+          },
+        });
+      }
 
-                if (percent >= threshold) {
-                  const comp = await Company.findById(bucket.companyId);
-                  sendBudgetAlertEmail({
-                    to: user.email,
-                    userName: user.name,
-                    companyName: comp?.name || 'Company',
-                    categoryName: bucket.categoryName,
-                    limitAmount: bucket.limitAmount,
-                    currentSpend: totalSpent,
-                    percentUsed: percent,
-                  }).catch((e) => console.error('[Resend Error] Budget alert error:', e.message));
-                }
-              }
-            }
-          }
-        } catch (alertErr) {
-          console.error('[Budget Alert Check Error]:', alertErr.message);
-        }
-      })();
+      notifyBudgetThresholds(context.orgId, [...new Set(documents.map((row) => row.categoryId))]).catch((alertErr) =>
+        console.error('[Budget Alert Check Error]:', alertErr.message)
+      );
 
       return createdExpenses;
     },
 
     updateExpense: async (_, { id, input }, context) => {
-      requireAuth(context);
-
       const existingExpense = await Expense.findOne({
         _id: id,
         orgId: context.orgId,
@@ -409,12 +410,15 @@ export const expenseResolvers = {
           extensions: { code: 'NOT_FOUND', http: { status: 404 } },
         });
       }
+      await assertWrite(context, 'expenses', existingExpense.companyId);
+      await assertMonthOpen(context.orgId, input.date ? parseDateInput(input.date) : existingExpense.date);
 
       if (input.companyId) {
         await assertCompaniesInOrg([input.companyId], context.orgId);
       }
 
       const updateData = { ...input, updatedBy: context.userId };
+      delete updateData.makeRecurring;
       if (input.date) updateData.date = parseDateInput(input.date);
       if (input.amount !== undefined) updateData.amount = Math.max(0, Number(input.amount));
 
@@ -548,30 +552,56 @@ export const expenseResolvers = {
         { new: true }
       );
 
+      if (expense) {
+        await rememberVendor({
+          orgId: context.orgId,
+          categoryId: expense.categoryId,
+          subcategory: expense.subcategory,
+          name: expense.vendor,
+        });
+      }
+
       return expense;
     },
 
     deleteExpense: async (_, { id }, context) => {
-      requireAuth(context);
+      const existing = await Expense.findOne({ _id: id, orgId: context.orgId, isDeleted: { $ne: true } });
+      if (!existing) return false;
+      await assertDelete(context, 'expenses', existing.companyId);
+      await assertMonthOpen(context.orgId, existing.date);
+      existing.isDeleted = true;
+      existing.updatedBy = context.userId;
+      await existing.save();
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'DELETE_EXPENSE',
+        entityType: 'Expense',
+        entityId: existing._id,
+        companyId: existing.companyId,
+        description: `Deleted expense of ₹${Number(existing.amount || 0).toLocaleString()} (${existing.categoryName})`,
+      });
+      return true;
+    },
 
-      const expense = await Expense.findOneAndUpdate(
-        { _id: id, orgId: context.orgId, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, updatedBy: context.userId } }
-      );
-
-      if (expense) {
-        logActivity({
-          orgId: context.orgId,
-          userId: context.userId,
-          action: 'DELETE_EXPENSE',
-          entityType: 'Expense',
-          entityId: expense._id,
-          companyId: expense.companyId,
-          description: `Deleted expense of ₹${Number(expense.amount || 0).toLocaleString()} (${expense.categoryName})`,
-        });
-      }
-
-      return !!expense;
+    restoreExpense: async (_, { id }, context) => {
+      const existing = await Expense.findOne({ _id: id, orgId: context.orgId, isDeleted: true });
+      if (!existing) return false;
+      await assertWrite(context, 'expenses', existing.companyId);
+      await assertMonthOpen(context.orgId, existing.date);
+      existing.isDeleted = false;
+      existing.updatedBy = context.userId;
+      await existing.save();
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'RESTORE_EXPENSE',
+        entityType: 'Expense',
+        entityId: existing._id,
+        companyId: existing.companyId,
+        description: `Restored expense of ₹${Number(existing.amount || 0).toLocaleString()} (${existing.categoryName})`,
+      });
+      return true;
     },
   },
 };

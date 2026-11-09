@@ -57,6 +57,7 @@ input ExpenseInput {
   incomeId: ID
   incomeIds: [ID]
   incomeAllocations: [IncomeAllocationInput!]
+  makeRecurring: Boolean
 }
 
 input ExpenseFilter {
@@ -69,6 +70,7 @@ input ExpenseFilter {
   vendor: String
   paymentMethodId: ID
   sortBy: String
+  includeDeleted: Boolean
 }
 
 extend type Query {
@@ -81,4 +83,5 @@ extend type Mutation {
   createExpenses(inputs: [ExpenseInput!]!): [Expense!]!
   updateExpense(id: ID!, input: ExpenseInput!): Expense!
   deleteExpense(id: ID!): Boolean!
+  restoreExpense(id: ID!): Boolean!
 }

@@ -1,20 +1,21 @@
 import { GraphQLError } from 'graphql';
 import { BudgetBucket, Category } from '../../models/index.js';
 import { calculateBudgetUsage } from '../../services/budgetService.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireWriter } from '../../middleware/auth.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
+import { assertWorkspace } from '../../utils/access.js';
 
 export const budgetResolvers = {
   Query: {
     budgetBuckets: async (_, { companyId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       const query = { orgId: context.orgId };
       if (companyId) query.companyId = companyId;
       return BudgetBucket.find(query).sort({ createdAt: -1 });
     },
 
     budgetBucket: async (_, { id }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       const bucket = await BudgetBucket.findOne({ _id: id, orgId: context.orgId });
       if (!bucket) {
         throw new GraphQLError('Budget bucket not found', {
@@ -25,7 +26,7 @@ export const budgetResolvers = {
     },
 
     budgetUsage: async (_, { bucketId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       const bucket = await BudgetBucket.findOne({ _id: bucketId, orgId: context.orgId });
       if (!bucket) {
         throw new GraphQLError('Budget bucket not found', {
@@ -36,7 +37,7 @@ export const budgetResolvers = {
     },
 
     allBudgetUsages: async (_, { companyId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       const query = { orgId: context.orgId };
       if (companyId) query.companyId = companyId;
 
@@ -47,7 +48,7 @@ export const budgetResolvers = {
 
   Mutation: {
     createBudgetBucket: async (_, { input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const { companyId, categoryId, name, limitAmount, period, startDate, endDate, alertThreshold } = input;
 
       if (!companyId || !categoryId || !name || limitAmount === undefined) {
@@ -84,7 +85,7 @@ export const budgetResolvers = {
     },
 
     updateBudgetBucket: async (_, { id, input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const updateData = { ...input };
       if (input.limitAmount !== undefined) updateData.limitAmount = Math.max(0, Number(input.limitAmount));
       if (input.startDate) updateData.startDate = new Date(input.startDate);
@@ -112,7 +113,7 @@ export const budgetResolvers = {
     },
 
     deleteBudgetBucket: async (_, { id }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const result = await BudgetBucket.findOneAndDelete({ _id: id, orgId: context.orgId });
       return !!result;
     },

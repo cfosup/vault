@@ -1,8 +1,9 @@
 import { GraphQLError } from 'graphql';
-import { Company, User } from '../../models/index.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { Company, User, Expense, Income, BudgetBucket, Category } from '../../models/index.js';
+import { requireAuth, requireOwner } from '../../middleware/auth.js';
 import { seedCompanyCoreCategories } from '../../services/seedService.js';
 import { logActivity } from '../../services/activityService.js';
+import { loadActor, accessOf, companyAllowed } from '../../utils/access.js';
 
 export const companyResolvers = {
   Query: {
@@ -13,7 +14,11 @@ export const companyResolvers = {
         const u = await User.findById(context.userId).select('orgId');
         if (u) orgId = u.orgId?.toString();
       }
-      return Company.find({ orgId }).sort({ createdAt: -1 });
+      return Company.find({ orgId }).sort({ createdAt: -1 }).then(async (companies) => {
+        const access = accessOf(await loadActor(context));
+        if (!access.companyIds.length) return companies;
+        return companies.filter((company) => access.companyIds.includes(company._id.toString()));
+      });
     },
 
     company: async (_, { id }, context) => {
@@ -29,13 +34,19 @@ export const companyResolvers = {
           extensions: { code: 'NOT_FOUND', http: { status: 404 } },
         });
       }
+      const access = accessOf(await loadActor(context));
+      if (!companyAllowed(access, company._id)) {
+        throw new GraphQLError('Company not found', {
+          extensions: { code: 'NOT_FOUND', http: { status: 404 } },
+        });
+      }
       return company;
     },
   },
 
   Mutation: {
     createCompany: async (_, { input }, context) => {
-      requireAuth(context);
+      requireOwner(context);
       let orgId = context.orgId;
       if (!orgId && context.userId) {
         const u = await User.findById(context.userId).select('orgId');
@@ -84,7 +95,7 @@ export const companyResolvers = {
     },
 
     updateCompany: async (_, { id, input }, context) => {
-      requireAuth(context);
+      requireOwner(context);
       let orgId = context.orgId;
       if (!orgId && context.userId) {
         const u = await User.findById(context.userId).select('orgId');
@@ -129,14 +140,29 @@ export const companyResolvers = {
     },
 
     deleteCompany: async (_, { id }, context) => {
-      requireAuth(context);
+      requireOwner(context);
       let orgId = context.orgId;
       if (!orgId && context.userId) {
         const u = await User.findById(context.userId).select('orgId');
         if (u) orgId = u.orgId?.toString();
       }
-      const result = await Company.findOneAndDelete({ _id: id, orgId });
-      return !!result;
+      const company = await Company.findOne({ _id: id, orgId });
+      if (!company) return false;
+
+      await Promise.all([
+        Expense.updateMany(
+          { orgId, companyId: id, isDeleted: { $ne: true } },
+          { $set: { isDeleted: true } }
+        ),
+        Income.updateMany(
+          { orgId, companyId: id, isDeleted: { $ne: true } },
+          { $set: { isDeleted: true } }
+        ),
+        BudgetBucket.deleteMany({ orgId, companyId: id }),
+        Category.deleteMany({ orgId, companyId: id }),
+      ]);
+      await Company.deleteOne({ _id: id, orgId });
+      return true;
     },
   },
 };

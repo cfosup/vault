@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMutation, useLazyQuery } from '@apollo/client/react';
-import { LOGIN, REGISTER, FIREBASE_OAUTH } from '../graphql/mutations';
-import { CHECK_EMAIL_EXISTS } from '../graphql/queries';
+import { useMutation } from '@apollo/client/react';
+import { LOGIN, REGISTER, FIREBASE_OAUTH, REQUEST_PASSWORD_RESET, RESET_PASSWORD } from '../graphql/mutations';
 import { signInWithGoogle } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
 import {
   ArrowRight,
-  ShieldCheck,
-  TrendingUp,
   Lock,
   Mail,
   User,
@@ -36,44 +33,48 @@ export const LoginPage = () => {
   const isExpired = searchParams.get('expired') === 'true';
   const loginStore = useAuthStore((state) => state.login);
 
+  const resetToken = searchParams.get('resetToken') || '';
+  const [resetMessage, setResetMessage] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN);
   const [registerMutation, { loading: registerLoading }] = useMutation(REGISTER);
   const [firebaseOAuthMutation, { loading: oauthLoading }] = useMutation(FIREBASE_OAUTH);
-  const [checkEmailQuery] = useLazyQuery(CHECK_EMAIL_EXISTS, { fetchPolicy: 'network-only' });
+  const [requestReset] = useMutation(REQUEST_PASSWORD_RESET);
+  const [resetPasswordMutation] = useMutation(RESET_PASSWORD);
 
   const isValidEmail = (val) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val).trim());
   };
 
-  const handleVerifyEmail = async (val = email, registerMode = isRegister) => {
-    const trimmed = (val || '').trim();
-    if (!trimmed || !isValidEmail(trimmed)) {
-      setEmailStatus(null);
+  const handleVerifyEmail = () => {};
+
+  const handleRequestReset = async () => {
+    setErrorMsg('');
+    setResetMessage('');
+    if (!email) {
+      setErrorMsg('Enter the email on the account.');
       return;
     }
-    setCheckingEmail(true);
     try {
-      const res = await checkEmailQuery({ variables: { email: trimmed } });
-      const exists = !!res.data?.checkEmailExists;
-      if (registerMode) {
-        setEmailStatus({
-          checked: true,
-          exists,
-          message: exists ? 'An account with this email already exists.' : 'Email is available for registration.',
-          isWarning: exists,
-        });
-      } else {
-        setEmailStatus({
-          checked: true,
-          exists,
-          message: exists ? 'Account verified.' : 'No account found with this email address.',
-          isWarning: !exists,
-        });
-      }
-    } catch {
-      setEmailStatus(null);
-    } finally {
-      setCheckingEmail(false);
+      const res = await requestReset({ variables: { email } });
+      setResetMessage(res.data?.requestPasswordReset?.message || 'If an account exists, a reset link has been sent.');
+    } catch (err) {
+      setErrorMsg(err.message || 'Could not send the reset email.');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setErrorMsg('');
+    setResetMessage('');
+    if (!newPassword || newPassword.length < 8) {
+      setErrorMsg('Use a password of at least 8 characters.');
+      return;
+    }
+    try {
+      const res = await resetPasswordMutation({ variables: { token: resetToken, password: newPassword } });
+      setResetMessage(res.data?.resetPassword?.message || 'Password updated.');
+    } catch (err) {
+      setErrorMsg(err.message || 'This reset link is invalid or has expired.');
     }
   };
 
@@ -103,10 +104,6 @@ export const LoginPage = () => {
       } else {
         if (!email || !password) {
           setErrorMsg('Email and password are required.');
-          return;
-        }
-        if (emailStatus?.checked && !emailStatus.exists) {
-          setErrorMsg('No account found with this email address. Please check your email or create an account.');
           return;
         }
         const res = await loginMutation({
@@ -165,13 +162,14 @@ export const LoginPage = () => {
       style={{
         minHeight: '100vh',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '2rem 1.25rem',
+        padding: '1.5rem 1.25rem 2rem',
         backgroundColor: 'var(--bg-app)',
+        overflowY: 'auto',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div style={{ width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Brand Header */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div
@@ -191,12 +189,12 @@ export const LoginPage = () => {
             Vault
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '340px', lineHeight: 1.45 }}>
-            Enterprise multi-entity financial intelligence, proactive budget caps & real-time ledgers
+            Track income, expenses, and budgets for each company.
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="card" style={{ padding: '2rem' }}>
+        <div className="card" style={{ padding: '1.35rem 1.4rem 1.2rem' }}>
           {/* Segmented Tab Switcher */}
           <div
             style={{
@@ -397,7 +395,7 @@ export const LoginPage = () => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <form className="auth-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
             {isRegister && (
               <>
                 <div className="form-group">
@@ -559,6 +557,30 @@ export const LoginPage = () => {
               </div>
             </div>
 
+            {!isRegister && !resetToken && (
+              <button type="button" className="btn btn-ghost" onClick={handleRequestReset} style={{ alignSelf: 'flex-start', padding: '0.15rem 0' }}>
+                Forgot password?
+              </button>
+            )}
+            {resetMessage && (
+              <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>{resetMessage}</p>
+            )}
+            {resetToken && (
+              <div className="form-group">
+                <label className="form-label">New password</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                />
+                <button type="button" className="btn btn-primary" onClick={handleResetPassword} style={{ width: '100%', marginTop: '0.5rem' }}>
+                  Update password
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               className="btn btn-primary"
@@ -584,26 +606,6 @@ export const LoginPage = () => {
             </button>
           </form>
 
-          {/* Security Banner */}
-          <div
-            style={{
-              marginTop: '1.25rem',
-              paddingTop: '1rem',
-              borderTop: '1px solid var(--border-color)',
-              textAlign: 'center',
-              fontSize: '0.78rem',
-              color: 'var(--text-subtle)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1.25rem' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <ShieldCheck size={13} style={{ color: 'var(--success)' }} /> 256-bit Encrypted
-              </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <TrendingUp size={13} style={{ color: 'var(--primary)' }} /> Real-Time Ledgers
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

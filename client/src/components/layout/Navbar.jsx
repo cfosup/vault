@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client/react';
 import {
@@ -17,13 +17,19 @@ import {
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { GET_COMPANIES } from '../../graphql/queries';
+import { GET_COMPANIES, GET_ME } from '../../graphql/queries';
+import { canSee } from '../../utils/access';
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, org, logout, theme, toggleTheme, activeCompanyId, setActiveCompanyId } = useAuthStore();
+  const { user, org, logout, theme, toggleTheme, activeCompanyId, setActiveCompanyId, updateUser } = useAuthStore();
   const { data: companyData } = useQuery(GET_COMPANIES);
+  const { data: meData } = useQuery(GET_ME, { skip: !user });
+
+  useEffect(() => {
+    if (meData?.me) updateUser(meData.me);
+  }, [meData, updateUser]);
 
   const companies = companyData?.companies || [];
 
@@ -43,13 +49,13 @@ export const Navbar = () => {
   };
 
   const navItems = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/expenses', label: 'Expenses', icon: Receipt },
-    { to: '/income', label: 'Income', icon: TrendingUp },
-    { to: '/budgets', label: 'Budgets', icon: PieChart },
-    { to: '/companies', label: 'Companies', icon: Building2 },
-    { to: '/settings', label: 'Settings', icon: Settings },
-  ];
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true, area: 'dashboard' },
+    { to: '/expenses', label: 'Expenses', icon: Receipt, area: 'expenses' },
+    { to: '/income', label: 'Income', icon: TrendingUp, area: 'income' },
+    { to: '/budgets', label: 'Budgets', icon: PieChart, area: 'budgets' },
+    { to: '/companies', label: 'Companies', icon: Building2, area: 'companies' },
+    { to: '/settings', label: 'Settings', icon: Settings, area: 'settings' },
+  ].filter((item) => canSee(user, item.area));
 
   return (
     <>
@@ -92,9 +98,9 @@ export const Navbar = () => {
                   className="company-select"
                   value={activeCompanyId || ''}
                   onChange={(e) => setActiveCompanyId(e.target.value || null)}
-                  title="Filter Workspace by Legal Entity"
+                  title="Show one company or all of them"
                 >
-                  <option value="">All Entities (Consolidated)</option>
+                  <option value="">All companies</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -257,7 +263,7 @@ export const Navbar = () => {
         {companies.length > 0 && (
           <div className="mobile-drawer-company-section">
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Active Legal Entity
+              Company
             </label>
             <select
               className="select"
@@ -268,7 +274,7 @@ export const Navbar = () => {
               }}
               style={{ width: '100%', fontSize: '0.85rem', marginTop: '0.25rem' }}
             >
-              <option value="">All Entities (Consolidated)</option>
+              <option value="">All companies</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

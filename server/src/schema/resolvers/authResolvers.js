@@ -1,8 +1,9 @@
+import crypto from 'crypto';
 import { GraphQLError } from 'graphql';
-import { Organization, User } from '../../models/index.js';
+import { Organization, User, ActivityLog } from '../../models/index.js';
 import { hashPassword, comparePassword, signToken } from '../../services/authService.js';
-import { requireAuth } from '../../middleware/auth.js';
-import { sendWelcomeEmail, sendTestEmail } from '../../services/emailService.js';
+import { requireAuth, requireWriter } from '../../middleware/auth.js';
+import { sendWelcomeEmail, sendTestEmail, sendPasswordResetEmail } from '../../services/emailService.js';
 import { logActivity } from '../../services/activityService.js';
 import { verifyFirebaseIdToken } from '../../services/firebaseAuth.js';
 
@@ -29,11 +30,27 @@ export const authResolvers = {
       return user;
     },
 
-    checkEmailExists: async (_, { email }) => {
+    checkEmailExists: async (_, { email }, context) => {
+      requireAuth(context);
       if (!email) return false;
       const normalizedEmail = email.toLowerCase().trim();
       const count = await User.countDocuments({ email: normalizedEmail });
       return count > 0;
+    },
+
+    myActivityLogs: async (_, { limit = 40 }, context) => {
+      requireAuth(context);
+      const logs = await ActivityLog.find({ orgId: context.orgId })
+        .sort({ createdAt: -1 })
+        .limit(Math.min(limit || 40, 100));
+      return logs.map((log) => ({
+        id: log._id.toString(),
+        action: log.action,
+        entityType: log.entityType || '',
+        description: log.description,
+        companyName: log.companyName || '',
+        createdAt: log.createdAt ? log.createdAt.toISOString() : new Date().toISOString(),
+      }));
     },
   },
 
@@ -280,7 +297,7 @@ export const authResolvers = {
     },
 
     sendTestEmail: async (_, { email }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const user = await User.findById(context.userId);
       const targetEmail = (email && email.trim()) || user?.email;
       if (!targetEmail) {
@@ -306,6 +323,63 @@ export const authResolvers = {
         success: true,
         message: `Test email successfully dispatched to ${targetEmail} via Resend!`,
         messageId: result.messageId || null,
+      };
+    },
+
+    requestPasswordReset: async (_, { email }) => {
+      const generic = {
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.',
+        messageId: null,
+      };
+      if (!email) return generic;
+
+      const user = await User.findOne({ email: email.toLowerCase().trim() });
+      if (!user || !user.passwordHash) return generic;
+
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+      await user.save();
+
+      const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?resetToken=${rawToken}`;
+      sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+      }).catch((err) => console.error('[Resend Error] Password reset email error:', err.message));
+
+      return generic;
+    },
+
+    resetPassword: async (_, { token, password }) => {
+      if (!token || !password) {
+        throw new GraphQLError('Reset token and a new password are required.', {
+          extensions: { code: 'BAD_USER_INPUT' },
+        });
+      }
+
+      const hashed = crypto.createHash('sha256').update(token).digest('hex');
+      const user = await User.findOne({
+        passwordResetToken: hashed,
+        passwordResetExpires: { $gt: new Date() },
+      });
+      if (!user) {
+        throw new GraphQLError('This reset link is invalid or has expired.', {
+          extensions: { code: 'BAD_USER_INPUT' },
+        });
+      }
+
+      user.passwordHash = await hashPassword(password);
+      user.passwordResetToken = null;
+      user.passwordResetExpires = null;
+      if (!user.authProvider || user.authProvider === 'google') user.authProvider = 'local';
+      await user.save();
+
+      return {
+        success: true,
+        message: 'Password updated. You can sign in with the new password.',
+        messageId: null,
       };
     },
   },

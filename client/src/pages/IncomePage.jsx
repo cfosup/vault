@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import {
   Plus,
+  Pencil,
+  RotateCcw,
   Trash2,
   Download,
   Search,
@@ -15,14 +17,17 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
-import { GET_INCOMES, GET_COMPANIES } from '../graphql/queries';
-import { CREATE_INCOMES, DELETE_INCOME } from '../graphql/mutations';
+import { GET_INCOMES, GET_INCOME, GET_EXPENSES_BY_INCOME, GET_COMPANIES } from '../graphql/queries';
+import { CREATE_INCOMES, UPDATE_INCOME, DELETE_INCOME, RESTORE_INCOME } from '../graphql/mutations';
+import { canWriteModule, canDeleteKind } from '../utils/access';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { formatDisplayDate } from '../utils/dateUtils';
 
 export const IncomePage = () => {
-  const { activeCompanyId, token } = useAuthStore();
+  const { activeCompanyId, token, user } = useAuthStore();
+  const canWrite = canWriteModule(user, 'income');
+  const canDelete = canDeleteKind(user, 'income');
   const [showForm, setShowForm] = useState(false);
   const [entryMode, setEntryMode] = useState('quick'); // 'quick' | 'batch'
   const [search, setSearch] = useState('');
@@ -34,10 +39,15 @@ export const IncomePage = () => {
   const [quickSource, setQuickSource] = useState('');
   const [quickAmount, setQuickAmount] = useState('');
   const [quickNotes, setQuickNotes] = useState('');
+  const [makeRecurring, setMakeRecurring] = useState(false);
 
   // Delete Confirmation Modal State
   const [incomeToDelete, setIncomeToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState(null);
+  const [expandedIncomeId, setExpandedIncomeId] = useState(null);
+  const [linkedExpenses, setLinkedExpenses] = useState([]);
 
   // Batch rows state
   const [rows, setRows] = useState([
@@ -59,6 +69,7 @@ export const IncomePage = () => {
       filter: {
         companyId: activeCompanyId || null,
         search: search || null,
+        includeDeleted: showDeleted,
       },
       page,
       limit: 15,
@@ -66,7 +77,11 @@ export const IncomePage = () => {
   });
 
   const [createIncomes, { loading: saving }] = useMutation(CREATE_INCOMES);
+  const [updateIncome] = useMutation(UPDATE_INCOME);
   const [deleteIncome] = useMutation(DELETE_INCOME);
+  const [restoreIncome] = useMutation(RESTORE_INCOME);
+  const [loadIncome] = useLazyQuery(GET_INCOME, { fetchPolicy: 'network-only' });
+  const [loadLinked] = useLazyQuery(GET_EXPENSES_BY_INCOME, { fetchPolicy: 'network-only' });
 
   const incomes = data?.incomes?.incomes || [];
   const totalPages = data?.incomes?.totalPages || 1;
@@ -83,6 +98,22 @@ export const IncomePage = () => {
   }, [incomes, totalInflow]);
 
   // Quick Form Submit
+  const blankIncomeFields = () => {
+    setEditingIncomeId(null);
+    setMakeRecurring(false);
+    setQuickDate(new Date().toISOString().split('T')[0]);
+    setQuickSource('');
+    setQuickAmount('');
+    setQuickNotes('');
+    setQuickCompanyId(activeCompanyId || companies[0]?.id || '');
+  };
+
+  const openFreshIncome = () => {
+    setEntryMode('quick');
+    blankIncomeFields();
+    setShowForm(true);
+  };
+
   const handleQuickSubmit = async (e, addAnother = false) => {
     if (e) e.preventDefault();
     if (!quickCompanyId || !quickSource || !quickAmount) {
@@ -96,20 +127,21 @@ export const IncomePage = () => {
       source: quickSource,
       amount: parseFloat(quickAmount) || 0,
       notes: quickNotes,
+      makeRecurring: makeRecurring && !editingIncomeId,
     };
 
     try {
-      await createIncomes({ variables: { inputs: [input] } });
+      if (editingIncomeId) {
+        await updateIncome({ variables: { id: editingIncomeId, input } });
+      } else {
+        await createIncomes({ variables: { inputs: [input] } });
+      }
       refetch();
       if (addAnother) {
-        setQuickAmount('');
-        setQuickSource('');
-        setQuickNotes('');
+        blankIncomeFields();
       } else {
         setShowForm(false);
-        setQuickAmount('');
-        setQuickSource('');
-        setQuickNotes('');
+        blankIncomeFields();
       }
     } catch (err) {
       alert('Error saving revenue: ' + err.message);
@@ -200,7 +232,7 @@ export const IncomePage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Top Header Card */}
       <div
         className="card"
@@ -216,27 +248,39 @@ export const IncomePage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.65rem' }}>Revenue & Inflow Ledger</h1>
+            <h1 style={{ fontSize: '1.65rem' }}>Income</h1>
             <span className="badge badge-success">
-              {totalCount} Total Receipts
+              {totalCount} recorded
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Record client subscriptions, retainer contracts, operational revenues, and multi-entity receipts
+            Add money coming in, then review it by company or export it.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setShowDeleted((v) => !v); setPage(1); }}>
+            {showDeleted ? 'Show active' : 'Show deleted'}
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>
             <Download size={14} /> Export CSV
           </button>
+          {canWrite && (
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (showForm) {
+                setShowForm(false);
+                blankIncomeFields();
+                return;
+              }
+              openFreshIncome();
+            }}
           >
             {showForm ? <X size={15} /> : <Plus size={15} />}
-            {showForm ? 'Close Entry Form' : '+ Record Revenue'}
+            {showForm ? 'Close' : 'Add income'}
           </button>
+          )}
         </div>
       </div>
 
@@ -259,7 +303,7 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Page Total Inflow
+              Received on this page
             </span>
             <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--success)' }}>
               ₹{totalInflow.toLocaleString('en-IN')}
@@ -284,7 +328,7 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Average Ticket Size
+              Average amount
             </span>
             <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }}>
               ₹{avgInflow.toLocaleString('en-IN')}
@@ -309,10 +353,10 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Active Entity Filter
+              Company
             </span>
             <span style={{ fontSize: '1.1rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {activeCompany ? activeCompany.name : 'All Consolidated'}
+              {activeCompany ? activeCompany.name : 'All companies'}
             </span>
           </div>
         </div>
@@ -324,9 +368,9 @@ export const IncomePage = () => {
           {/* Form Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-color)' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Record Corporate Revenue</h3>
+              <h3 style={{ fontSize: '1.15rem' }}>{editingIncomeId ? 'Edit income' : 'New income'}</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Track received client disbursements, investor capital, or miscellaneous receivables
+                {editingIncomeId ? 'Update this receipt.' : 'This starts blank. Add who paid you and how much.'}
               </p>
             </div>
 
@@ -349,7 +393,7 @@ export const IncomePage = () => {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <Zap size={14} /> Quick Entry Card
+                <Zap size={14} /> One receipt
               </button>
               <button
                 type="button"
@@ -369,7 +413,7 @@ export const IncomePage = () => {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <TableProperties size={14} /> Batch Spreadsheet Grid
+                <TableProperties size={14} /> Several at once
               </button>
             </div>
           </div>
@@ -379,7 +423,7 @@ export const IncomePage = () => {
             <form onSubmit={(e) => handleQuickSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div className="grid-3">
                 <div className="form-group">
-                  <label className="form-label">Receipt Date</label>
+                  <label className="form-label">Date</label>
                   <input
                     type="date"
                     className="input"
@@ -390,7 +434,7 @@ export const IncomePage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Receiving Legal Entity</label>
+                  <label className="form-label">Company</label>
                   <select
                     className="select"
                     value={quickCompanyId}
@@ -407,7 +451,7 @@ export const IncomePage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Amount (₹ INR) *</label>
+                  <label className="form-label">Amount</label>
                   <input
                     type="number"
                     className="input mono"
@@ -424,7 +468,7 @@ export const IncomePage = () => {
 
               <div className="grid-2">
                 <div className="form-group">
-                  <label className="form-label">Revenue Source / Client Name *</label>
+                  <label className="form-label">Who paid you</label>
                   <input
                     type="text"
                     className="input"
@@ -436,7 +480,7 @@ export const IncomePage = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Invoice Details / Reference Notes</label>
+                  <label className="form-label">Note</label>
                   <input
                     type="text"
                     className="input"
@@ -447,6 +491,10 @@ export const IncomePage = () => {
                 </div>
               </div>
 
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={makeRecurring} onChange={(event) => setMakeRecurring(event.target.checked)} disabled={!!editingIncomeId} />
+                Repeat this income every month on this date
+              </label>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
@@ -457,7 +505,7 @@ export const IncomePage = () => {
                   Save & Add Another
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <Check size={16} /> {saving ? 'Recording...' : 'Record Revenue'}
+                  <Check size={16} /> {saving ? 'Saving...' : editingIncomeId ? 'Save changes' : 'Save income'}
                 </button>
               </div>
             </form>
@@ -560,7 +608,7 @@ export const IncomePage = () => {
                   <Plus size={14} /> Add Row
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <Check size={16} /> {saving ? 'Saving...' : `Save ${rows.length} Revenue(s)`}
+                  <Check size={16} /> {saving ? 'Saving...' : `Save ${rows.length} income`}
                 </button>
               </div>
             </form>
@@ -610,7 +658,7 @@ export const IncomePage = () => {
                   <div className="empty-state">
                     <div className="empty-icon"><TrendingUp size={24} /></div>
                     <div className="empty-title">No revenue records found</div>
-                    <div className="empty-desc">Click "+ Record Revenue" above to record your first inflow</div>
+                    <div className="empty-desc">Use Add income to record the first payment you received.</div>
                   </div>
                 </td>
               </tr>
@@ -619,7 +667,8 @@ export const IncomePage = () => {
                 const comp = companies.find((c) => c.id === inc.companyId);
 
                 return (
-                  <tr key={inc.id}>
+                  <React.Fragment key={inc.id}>
+                  <tr>
                     <td className="mono" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                       {formatDisplayDate(inc.date)}
                     </td>
@@ -642,14 +691,73 @@ export const IncomePage = () => {
                     <td style={{ textAlign: 'right' }}>
                       <button
                         className="btn btn-secondary btn-icon"
+                        title="Linked expenses"
+                        onClick={async () => {
+                          if (expandedIncomeId === inc.id) {
+                            setExpandedIncomeId(null);
+                            return;
+                          }
+                          const res = await loadLinked({ variables: { incomeId: inc.id } });
+                          setLinkedExpenses(res.data?.expensesByIncome || []);
+                          setExpandedIncomeId(inc.id);
+                        }}
+                      >
+                        <DollarSign size={13} />
+                      </button>
+                      {canWrite && showDeleted && (
+                        <button
+                          className="btn btn-secondary btn-icon"
+                          title="Restore income"
+                          onClick={async () => {
+                            await restoreIncome({ variables: { id: inc.id } });
+                            refetch();
+                          }}
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      )}
+                      {canWrite && !showDeleted && (
+                      <button
+                        className="btn btn-secondary btn-icon"
+                        title="Edit income"
+                        onClick={async () => {
+                          const res = await loadIncome({ variables: { id: inc.id } });
+                          const record = res.data?.income || inc;
+                          setEditingIncomeId(record.id);
+                          setQuickDate((record.date || '').slice(0, 10));
+                          setQuickCompanyId(record.companyId || '');
+                          setQuickSource(record.source || '');
+                          setQuickAmount(String(record.amount ?? ''));
+                          setQuickNotes(record.notes || '');
+                          setShowForm(true);
+                          setEntryMode('quick');
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      )}
+                      {canDelete && !showDeleted && (
+                      <button
+                        className="btn btn-secondary btn-icon"
                         onClick={() => setIncomeToDelete(inc.id)}
                         title="Delete Income Record"
                         style={{ color: 'var(--danger)' }}
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                     </td>
                   </tr>
+                  {expandedIncomeId === inc.id && (
+                    <tr>
+                      <td colSpan={6} style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {linkedExpenses.length === 0
+                          ? 'No expenses are linked to this receipt.'
+                          : linkedExpenses.map((exp) => `${exp.vendor || exp.categoryName}: ₹${Number(exp.amount).toLocaleString('en-IN')}`).join(' · ')}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })
             )}

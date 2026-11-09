@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import {
   Plus,
+  Pencil,
+  RotateCcw,
   Trash2,
   Download,
   Search,
@@ -15,8 +17,10 @@ import {
   TrendingUp,
   DollarSign,
 } from 'lucide-react';
-import { GET_EXPENSES, GET_COMPANIES, GET_CATEGORIES, GET_PAYMENT_METHODS, GET_INCOMES } from '../graphql/queries';
-import { CREATE_EXPENSES, DELETE_EXPENSE, CREATE_CATEGORY, ADD_SUBCATEGORY } from '../graphql/mutations';
+import { GET_EXPENSES, GET_EXPENSE, GET_COMPANIES, GET_CATEGORIES, GET_PAYMENT_METHODS, GET_INCOMES } from '../graphql/queries';
+import { VendorField } from '../components/common/VendorField';
+import { canWriteModule, canDeleteKind } from '../utils/access';
+import { CREATE_EXPENSES, UPDATE_EXPENSE, DELETE_EXPENSE, RESTORE_EXPENSE, CREATE_CATEGORY, ADD_SUBCATEGORY } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { CategorySelect } from '../components/common/CategorySelect';
 import { ConfirmModal } from '../components/common/ConfirmModal';
@@ -69,6 +73,11 @@ export const ExpensesPage = () => {
   // Delete Confirmation Modal State
   const [expenseToDelete, setExpenseToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+  const [makeRecurring, setMakeRecurring] = useState(false);
+  const canWrite = canWriteModule(user, 'expenses');
+  const canDelete = canDeleteKind(user, 'expenses');
 
   // Quick Add Category Modal state
   const [showAddCatModal, setShowAddCatModal] = useState(false);
@@ -130,6 +139,7 @@ export const ExpensesPage = () => {
         companyId: activeCompanyId || null,
         search: search || null,
         sortBy: sortBy || 'date_desc',
+        includeDeleted: showDeleted,
       },
       page,
       limit: 15,
@@ -138,7 +148,9 @@ export const ExpensesPage = () => {
   });
 
   const [createExpenses, { loading: saving }] = useMutation(CREATE_EXPENSES);
+  const [updateExpense] = useMutation(UPDATE_EXPENSE);
   const [deleteExpense] = useMutation(DELETE_EXPENSE);
+  const [restoreExpense] = useMutation(RESTORE_EXPENSE);
   const [createCategory] = useMutation(CREATE_CATEGORY);
   const [addSubcategory] = useMutation(ADD_SUBCATEGORY);
 
@@ -332,6 +344,66 @@ export const ExpensesPage = () => {
     });
   };
 
+  const blankExpenseFields = () => {
+    setEditingExpenseId(null);
+    setMakeRecurring(false);
+    setQuickDate(new Date().toISOString().split('T')[0]);
+    setQuickCategoryId('');
+    setQuickCategoryName('');
+    setQuickSubcategory('');
+    setQuickVendor('');
+    setQuickAmount('');
+    setQuickPaymentMethodId('');
+    setQuickIncomeId('');
+    setQuickIncomeIds([]);
+    setQuickIncomeAllocations([]);
+    setQuickNotes('');
+  };
+
+  const openFreshExpense = () => {
+    const targetComp = activeCompanyId || companies[0]?.id || '';
+    setEntryMode('quick');
+    blankExpenseFields();
+    setQuickCompanyId(targetComp);
+    if (targetComp) {
+      loadCategoriesForCompany(targetComp);
+      loadIncomesForCompany(targetComp, false);
+    }
+    setShowForm(true);
+  };
+
+  const startEditExpense = async (exp) => {
+    let record = exp;
+    try {
+      const res = await client.query({
+        query: GET_EXPENSE,
+        variables: { id: exp.id },
+        fetchPolicy: 'network-only',
+      });
+      if (res.data?.expense) record = { ...exp, ...res.data.expense };
+    } catch {
+      record = exp;
+    }
+    setEditingExpenseId(record.id);
+    setEntryMode('quick');
+    setQuickDate((record.date || '').slice(0, 10));
+    setQuickCompanyId(record.companyId || '');
+    setQuickCategoryId(record.categoryId || '');
+    setQuickCategoryName(record.categoryName || '');
+    setQuickSubcategory(record.subcategory || '');
+    setQuickVendor(record.vendor || '');
+    setQuickAmount(String(record.amount ?? ''));
+    setQuickPaymentMethodId(record.paymentMethodId || '');
+    setQuickIncomeId(record.incomeId || '');
+    setQuickIncomeIds(record.incomeId ? [record.incomeId] : []);
+    setQuickNotes(record.notes || '');
+    setShowForm(true);
+    if (record.companyId) {
+      loadCategoriesForCompany(record.companyId);
+      loadIncomesForCompany(record.companyId, false);
+    }
+  };
+
   // Quick Single Submit
   const handleQuickSubmit = async (e, addAnother = false) => {
     if (e) e.preventDefault();
@@ -368,6 +440,7 @@ export const ExpensesPage = () => {
       paymentMethodId: quickPaymentMethodId || null,
       paymentMethodName: pm?.name || '',
       notes: quickNotes,
+      makeRecurring: makeRecurring && !editingExpenseId,
       incomeId: quickIncomeIds[0] || quickIncomeId || null,
       incomeIds: quickIncomeIds.length > 0 ? quickIncomeIds : quickIncomeId ? [quickIncomeId] : [],
       incomeAllocations: quickIncomeIds.length > 1
@@ -378,7 +451,11 @@ export const ExpensesPage = () => {
     };
 
     try {
-      await createExpenses({ variables: { inputs: [input] } });
+      if (editingExpenseId) {
+        await updateExpense({ variables: { id: editingExpenseId, input } });
+      } else {
+        await createExpenses({ variables: { inputs: [input] } });
+      }
       const comp = companies.find((c) => c.id === input.companyId);
       const inc = allIncomes.find((i) => i.id === input.incomeId);
       setCachedIncomeSelection(user?.id, {
@@ -390,25 +467,15 @@ export const ExpensesPage = () => {
         incomeDate: inc?.date || '',
       });
 
-      setSuccessNotice(`Expense of ₹${Number(input.amount).toLocaleString('en-IN')} on ${formatDisplayDate(input.date)} recorded successfully!`);
+      setSuccessNotice(`Expense of ₹${Number(input.amount).toLocaleString('en-IN')} on ${formatDisplayDate(input.date)} ${editingExpenseId ? 'updated' : 'recorded'} successfully!`);
       setTimeout(() => setSuccessNotice(''), 5000);
       refetch();
       if (refetchIncomes) refetchIncomes();
       if (addAnother) {
-        setQuickAmount('');
-        setQuickVendor('');
-        setQuickNotes('');
-        setQuickIncomeId('');
-        setQuickIncomeIds([]);
-        setQuickIncomeAllocations([]);
+        blankExpenseFields();
       } else {
         setShowForm(false);
-        setQuickAmount('');
-        setQuickVendor('');
-        setQuickNotes('');
-        setQuickIncomeId('');
-        setQuickIncomeIds([]);
-        setQuickIncomeAllocations([]);
+        blankExpenseFields();
       }
     } catch (err) {
       alert('Error saving expense: ' + err.message);
@@ -800,7 +867,7 @@ export const ExpensesPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Top Header & Overview Strip */}
       <div
         className="card"
@@ -816,37 +883,39 @@ export const ExpensesPage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.65rem' }}>Disbursements & Expenses</h1>
+            <h1 style={{ fontSize: '1.65rem' }}>Expenses</h1>
             <span className="badge badge-danger">
-              {totalCount} Total Recorded
+              {totalCount} recorded
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Record payments with in-flight chart of accounts creation, multi-entity tagging, and CSV export
+            Add a payment, then find it again by company, category, or vendor.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setShowDeleted((v) => !v); setPage(1); }}>
+            {showDeleted ? 'Show active' : 'Show deleted'}
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>
             <Download size={14} /> Export CSV
           </button>
+          {canWrite && (
           <button
             className="btn btn-primary btn-sm"
             onClick={() => {
-              if (!showForm) {
-                const targetComp = quickCompanyId || activeCompanyId || companies[0]?.id;
-                if (targetComp) {
-                  if (!quickCompanyId) setQuickCompanyId(targetComp);
-                  loadCategoriesForCompany(targetComp);
-                  loadIncomesForCompany(targetComp, false);
-                }
+              if (showForm) {
+                setShowForm(false);
+                blankExpenseFields();
+                return;
               }
-              setShowForm(!showForm);
+              openFreshExpense();
             }}
           >
             {showForm ? <X size={15} /> : <Plus size={15} />}
-            {showForm ? 'Close Entry Form' : '+ Record Expense'}
+            {showForm ? 'Close' : 'Add expense'}
           </button>
+          )}
         </div>
       </div>
 
@@ -869,7 +938,7 @@ export const ExpensesPage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Page Total Spend
+              Spent on this page
             </span>
             <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--danger)' }}>
               ₹{totalFilteredAmount.toLocaleString('en-IN')}
@@ -894,7 +963,7 @@ export const ExpensesPage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Average Ticket Size
+              Average amount
             </span>
             <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }}>
               ₹{avgTicketSize.toLocaleString('en-IN')}
@@ -919,10 +988,10 @@ export const ExpensesPage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Active Entity Filter
+              Company
             </span>
             <span style={{ fontSize: '1.1rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {activeCompany ? activeCompany.name : 'All Consolidated'}
+              {activeCompany ? activeCompany.name : 'All companies'}
             </span>
           </div>
         </div>
@@ -943,9 +1012,11 @@ export const ExpensesPage = () => {
           {/* Mode Switcher */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '0.85rem', borderBottom: '1px solid var(--border-color)' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Record Operational Expense</h3>
+              <h3 style={{ fontSize: '1.15rem' }}>{editingExpenseId ? 'Edit expense' : 'New expense'}</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Categories are scoped to the selected company. Add categories or subcategories in-flight anytime.
+                {editingExpenseId
+                  ? 'Update this payment. A locked month cannot be changed.'
+                  : 'This starts blank. Pick a category to see vendors you have used before.'}
               </p>
             </div>
 
@@ -968,7 +1039,7 @@ export const ExpensesPage = () => {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <Zap size={14} /> Quick Entry Card
+                <Zap size={14} /> One expense
               </button>
               <button
                 type="button"
@@ -988,7 +1059,7 @@ export const ExpensesPage = () => {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <TableProperties size={14} /> Batch Spreadsheet Grid
+                <TableProperties size={14} /> Several at once
               </button>
             </div>
           </div>
@@ -999,7 +1070,7 @@ export const ExpensesPage = () => {
               <div className="grid-3">
                 {/* Date */}
                 <div className="form-group">
-                  <label className="form-label">Disbursement Date</label>
+                  <label className="form-label">Date</label>
                   <input
                     type="date"
                     className="input"
@@ -1011,7 +1082,7 @@ export const ExpensesPage = () => {
 
                 {/* Company */}
                 <div className="form-group">
-                  <label className="form-label">Legal Entity (Company)</label>
+                  <label className="form-label">Company</label>
                   <select
                     className="select"
                     value={quickCompanyId}
@@ -1042,7 +1113,7 @@ export const ExpensesPage = () => {
 
                 {/* Amount */}
                 <div className="form-group">
-                  <label className="form-label">Amount (₹ INR) *</label>
+                  <label className="form-label">Amount</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -1068,7 +1139,7 @@ export const ExpensesPage = () => {
               <div className="grid-3">
                 {/* Category with In-Flight option */}
                 <div className="form-group">
-                  <label className="form-label">Category (CORE BRIGHT Section) *</label>
+                  <label className="form-label">Category</label>
                   <CategorySelect
                     categories={getCategoriesForRow(quickCompanyId)}
                     value={quickCategoryId}
@@ -1087,7 +1158,7 @@ export const ExpensesPage = () => {
 
                 {/* Subcategory */}
                 <div className="form-group">
-                  <label className="form-label">Subcategory (Optional)</label>
+                  <label className="form-label">Subcategory</label>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                     <select
                       className="select"
@@ -1129,13 +1200,12 @@ export const ExpensesPage = () => {
 
                 {/* Vendor */}
                 <div className="form-group">
-                  <label className="form-label">Payee / Vendor Name</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g. AWS, Microsoft, Office Supplies"
+                  <label className="form-label">Vendor</label>
+                  <VendorField
+                    categoryId={quickCategoryId}
+                    subcategory={quickSubcategory}
                     value={quickVendor}
-                    onChange={(e) => setQuickVendor(e.target.value)}
+                    onChange={setQuickVendor}
                   />
                 </div>
               </div>
@@ -1143,7 +1213,7 @@ export const ExpensesPage = () => {
               <div className="grid-3">
                 {/* Payment Method */}
                 <div className="form-group">
-                  <label className="form-label">Payment Account</label>
+                  <label className="form-label">Paid from</label>
                   <select
                     className="select"
                     value={quickPaymentMethodId}
@@ -1171,7 +1241,7 @@ export const ExpensesPage = () => {
                     }}
                   >
                     <DollarSign size={13} style={{ color: 'var(--success)' }} />
-                    <span>Link to Income (Class & Sub-Class)</span>
+                    <span>Link to income</span>
                   </label>
                   <CompanyIncomeSelect
                     companies={companies}
@@ -1226,7 +1296,7 @@ export const ExpensesPage = () => {
 
                 {/* Notes */}
                 <div className="form-group">
-                  <label className="form-label">Description / Invoice Notes</label>
+                  <label className="form-label">Note</label>
                   <input
                     type="text"
                     className="input"
@@ -1421,6 +1491,10 @@ export const ExpensesPage = () => {
                 </div>
               )}
 
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={makeRecurring} onChange={(event) => setMakeRecurring(event.target.checked)} disabled={!!editingExpenseId} />
+                Repeat this expense every month on this date
+              </label>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
@@ -1431,7 +1505,7 @@ export const ExpensesPage = () => {
                   Save & Add Another
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <Check size={16} /> {saving ? 'Recording...' : 'Record Expense'}
+                  <Check size={16} /> {saving ? 'Saving...' : editingExpenseId ? 'Save changes' : 'Save expense'}
                 </button>
               </div>
             </form>
@@ -1565,12 +1639,12 @@ export const ExpensesPage = () => {
                         )}
                       </div>
 
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="Vendor"
+                      <VendorField
+                        categoryId={row.categoryId}
+                        subcategory={row.subcategory}
                         value={row.vendor}
-                        onChange={(e) => handleRowChange(idx, 'vendor', e.target.value)}
+                        onChange={(name) => handleRowChange(idx, 'vendor', name)}
+                        placeholder="Vendor"
                       />
 
                       <input
@@ -1699,9 +1773,9 @@ export const ExpensesPage = () => {
               }}
               style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', minWidth: '170px' }}
             >
-              <option value="date_desc">Disbursement Date (Newest)</option>
+              <option value="date_desc">Newest date</option>
               <option value="createdAt_desc">Recently Created</option>
-              <option value="date_asc">Disbursement Date (Oldest)</option>
+              <option value="date_asc">Oldest date</option>
               <option value="amount_desc">Amount (Highest)</option>
             </select>
           </div>
@@ -1735,7 +1809,7 @@ export const ExpensesPage = () => {
                   <div className="empty-state">
                     <div className="empty-icon"><Receipt size={24} /></div>
                     <div className="empty-title">No expense records found</div>
-                    <div className="empty-desc">Click "+ Record Expense" above to disburse your first payment</div>
+                    <div className="empty-desc">Use Add expense to record the first payment.</div>
                   </div>
                 </td>
               </tr>
@@ -1865,6 +1939,29 @@ export const ExpensesPage = () => {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
+                      {canWrite && showDeleted && (
+                        <button
+                          className="btn btn-secondary btn-icon"
+                          onClick={async () => {
+                            await restoreExpense({ variables: { id: exp.id } });
+                            refetch();
+                          }}
+                          title="Restore Expense"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      )}
+                      {canWrite && !showDeleted && (
+                      <button
+                        className="btn btn-secondary btn-icon"
+                        onClick={() => startEditExpense(exp)}
+                        title="Edit Expense"
+                        style={{ marginRight: '0.35rem' }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      )}
+                      {canDelete && !showDeleted && (
                       <button
                         className="btn btn-secondary btn-icon"
                         onClick={() => setExpenseToDelete(exp.id)}
@@ -1873,6 +1970,7 @@ export const ExpensesPage = () => {
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -1956,7 +2054,7 @@ export const ExpensesPage = () => {
             <form onSubmit={handleSaveCategory}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Target Legal Entity</label>
+                  <label className="form-label">Company</label>
                   <select
                     className="select"
                     value={catCompanyId}

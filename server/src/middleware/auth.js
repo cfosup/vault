@@ -56,7 +56,31 @@ export const requireAuth = (context) => {
   return context;
 };
 
+const roleOf = (context) => (context?.role || '').toLowerCase();
+
+const forbid = () => {
+  throw new GraphQLError('You do not have permission to change these records.', {
+    extensions: { code: 'FORBIDDEN', http: { status: 403 } },
+  });
+};
+
+export const requireWriter = (context) => {
+  requireAuth(context);
+  const role = roleOf(context);
+  if (role === 'owner' || role === 'admin' || role === 'superadmin') return context;
+  forbid();
+};
+
+export const requireOwner = (context) => {
+  requireAuth(context);
+  const role = roleOf(context);
+  if (role === 'owner' || role === 'superadmin') return context;
+  forbid();
+};
+
 export default {
   getAuthContext,
   requireAuth,
+  requireWriter,
+  requireOwner,
 };

@@ -13,6 +13,7 @@ import { getAuthContext } from './middleware/auth.js';
 import { exportExpensesCSV, exportIncomeCSV, exportCategoriesCSV } from './controllers/exportController.js';
 import { initKeepAlive } from './services/keepAliveService.js';
 import { apiMetricsMiddleware } from './services/apiMetricsService.js';
+import { runSchedules } from './services/scheduleService.js';
 
 dotenv.config();
 
@@ -44,7 +45,7 @@ app.use(
       ) {
         return callback(null, true);
       }
-      return callback(null, true);
+      return callback(null, false);
     },
     credentials: true,
   })
@@ -76,6 +77,20 @@ app.post('/api/admin/reset-database', (req, res) => {
 app.get('/export/expenses', exportExpensesCSV);
 app.get('/export/income', exportIncomeCSV);
 app.get('/export/categories', exportCategoriesCSV);
+
+app.post('/internal/run-schedules', async (req, res) => {
+  const secret = process.env.SCHEDULE_SECRET;
+  if (!secret || req.get('x-schedule-secret') !== secret) {
+    return res.status(403).json({ error: 'A schedule secret is required.' });
+  }
+  try {
+    const result = await runSchedules();
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    console.error('[Schedule] Run failed:', error);
+    return res.status(500).json({ error: 'Schedule run failed.' });
+  }
+});
 
 let server = null;
 let apolloServer = null;

@@ -3,12 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { PageLayout } from './components/layout/PageLayout';
 import { LoginPage } from './pages/LoginPage';
+import { JoinPage } from './pages/JoinPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { IncomePage } from './pages/IncomePage';
 import { BudgetsPage } from './pages/BudgetsPage';
 import { CompaniesPage } from './pages/CompaniesPage';
-import { CategoriesPage } from './pages/CategoriesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
@@ -31,6 +31,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/join" element={<JoinPage />} />
       <Route
         path="/"
         element={
@@ -70,10 +71,6 @@ export function App() {
             <CompaniesPage />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/categories"
-        element={<Navigate to="/companies" replace />}
       />
       <Route
         path="/settings"

@@ -3,9 +3,20 @@ import mongoose from 'mongoose';
 import { Expense, Income, Company } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { applyDateBounds } from '../../utils/dateRange.js';
+import { assertWorkspace } from '../../utils/access.js';
 
-export const dashboardResolvers = {
-  Query: {
+const guardWorkspace = (queryMap) => {
+  const wrapped = {};
+  for (const [name, fn] of Object.entries(queryMap)) {
+    wrapped[name] = async (parent, args, context, info) => {
+      await assertWorkspace(context);
+      return fn(parent, args, context, info);
+    };
+  }
+  return wrapped;
+};
+
+const dashboardQuery = {
     dashboardSummary: async (_, { filter = {} }, context) => {
       requireAuth(context);
 
@@ -354,7 +365,6 @@ export const dashboardResolvers = {
       );
       return reports;
     },
-  },
 };
 
 export const calculateCompanyIncomeUsage = async (orgId, companyId) => {
@@ -472,6 +482,10 @@ export const calculateCompanyIncomeUsage = async (orgId, companyId) => {
     unlinkedExpensesTotal,
     unlinkedExpenseCount,
   };
+};
+
+export const dashboardResolvers = {
+  Query: guardWorkspace(dashboardQuery),
 };
 
 export default dashboardResolvers;

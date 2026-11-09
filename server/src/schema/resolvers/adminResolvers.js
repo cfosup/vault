@@ -234,7 +234,7 @@ export const adminResolvers = {
       }));
 
       // 5. API Metrics
-      const apiMetricsData = apiMetrics.getMetrics();
+      const apiMetricsData = await apiMetrics.getMetrics();
 
       return {
         stats: {
@@ -256,7 +256,7 @@ export const adminResolvers = {
 
     adminApiMetrics: async (_, __, context) => {
       checkAdminAuth(context);
-      return apiMetrics.getMetrics();
+      return await apiMetrics.getMetrics();
     },
 
     adminChatbotUsage: async (_, __, context) => {

@@ -12,6 +12,11 @@ export const REGISTER = gql`
         email
         role
         isEmailVerified
+        accessScope
+        modules
+        companyIds
+        canDeleteExpenses
+        canDeleteIncome
       }
       org {
         id
@@ -34,6 +39,11 @@ export const LOGIN = gql`
         email
         role
         isEmailVerified
+        accessScope
+        modules
+        companyIds
+        canDeleteExpenses
+        canDeleteIncome
       }
       org {
         id
@@ -59,6 +69,11 @@ export const FIREBASE_OAUTH = gql`
         avatarUrl
         authProvider
         isEmailVerified
+        accessScope
+        modules
+        companyIds
+        canDeleteExpenses
+        canDeleteIncome
       }
       org {
         id
@@ -141,6 +156,24 @@ export const DELETE_CATEGORY_SECTION = gql`
   }
 `;
 
+export const UPDATE_CATEGORY = gql`
+  mutation UpdateCategory($id: ID!, $input: CategoryInput!) {
+    updateCategory(id: $id, input: $input) {
+      id
+      name
+    }
+  }
+`;
+
+export const UPDATE_SUBCATEGORY_ITEMS = gql`
+  mutation UpdateSubcategoryItems($categoryId: ID!, $subcategoryName: String!, $items: [String!]!) {
+    updateSubcategoryItems(categoryId: $categoryId, subcategoryName: $subcategoryName, items: $items) {
+      id
+      name
+    }
+  }
+`;
+
 export const ADD_SUBCATEGORY = gql`
   mutation AddSubcategory($categoryId: ID!, $subcategoryName: String!, $items: [String!]) {
     addSubcategory(categoryId: $categoryId, subcategoryName: $subcategoryName, items: $items) {
@@ -199,6 +232,18 @@ export const CREATE_PAYMENT_METHOD = gql`
 export const DELETE_PAYMENT_METHOD = gql`
   mutation DeletePaymentMethod($id: ID!) {
     deletePaymentMethod(id: $id)
+  }
+`;
+
+export const UPDATE_PAYMENT_METHOD = gql`
+  mutation UpdatePaymentMethod($id: ID!, $input: PaymentMethodInput!) {
+    updatePaymentMethod(id: $id, input: $input) {
+      id
+      name
+      type
+      accountNumber
+      isActive
+    }
   }
 `;
 
@@ -270,6 +315,12 @@ export const DELETE_EXPENSE = gql`
   }
 `;
 
+export const RESTORE_EXPENSE = gql`
+  mutation RestoreExpense($id: ID!) {
+    restoreExpense(id: $id)
+  }
+`;
+
 export const CREATE_INCOMES = gql`
   mutation CreateIncomes($inputs: [IncomeInput!]!) {
     createIncomes(inputs: $inputs) {
@@ -286,6 +337,23 @@ export const CREATE_INCOMES = gql`
 export const DELETE_INCOME = gql`
   mutation DeleteIncome($id: ID!) {
     deleteIncome(id: $id)
+  }
+`;
+
+export const RESTORE_INCOME = gql`
+  mutation RestoreIncome($id: ID!) {
+    restoreIncome(id: $id)
+  }
+`;
+
+export const UPDATE_INCOME = gql`
+  mutation UpdateIncome($id: ID!, $input: IncomeInput!) {
+    updateIncome(id: $id, input: $input) {
+      id
+      amount
+      source
+      notes
+    }
   }
 `;
 
@@ -311,6 +379,18 @@ export const CREATE_BUDGET_BUCKET = gql`
 export const DELETE_BUDGET_BUCKET = gql`
   mutation DeleteBudgetBucket($id: ID!) {
     deleteBudgetBucket(id: $id)
+  }
+`;
+
+export const UPDATE_BUDGET_BUCKET = gql`
+  mutation UpdateBudgetBucket($id: ID!, $input: BudgetBucketInput!) {
+    updateBudgetBucket(id: $id, input: $input) {
+      id
+      name
+      limitAmount
+      period
+      alertThreshold
+    }
   }
 `;
 
@@ -341,6 +421,24 @@ export const UPDATE_USER_ROLE = gql`
   }
 `;
 
+export const REQUEST_PASSWORD_RESET = gql`
+  mutation RequestPasswordReset($email: String!) {
+    requestPasswordReset(email: $email) {
+      success
+      message
+    }
+  }
+`;
+
+export const RESET_PASSWORD = gql`
+  mutation ResetPassword($token: String!, $password: String!) {
+    resetPassword(token: $token, password: $password) {
+      success
+      message
+    }
+  }
+`;
+
 export const ADMIN_LOGIN = gql`
   mutation AdminLogin($email: String!, $password: String!) {
     adminLogin(email: $email, password: $password) {
@@ -354,4 +452,42 @@ export const ADMIN_LOGIN = gql`
       }
     }
   }
+`;
+
+export const INVITE_MEMBER = gql`
+  mutation InviteMember($input: MemberAccessInput!) {
+    inviteMember(input: $input) { success message }
+  }
+`;
+
+export const ACCEPT_INVITE = gql`
+  mutation AcceptInvite($input: AcceptInviteInput!) {
+    acceptInvite(input: $input) {
+      token
+      user { id orgId name email role accessScope modules companyIds canDeleteExpenses canDeleteIncome }
+      org { id name slug plan }
+    }
+  }
+`;
+
+export const UPDATE_MEMBER_ACCESS = gql`
+  mutation UpdateMemberAccess($userId: ID!, $input: MemberAccessInput!) {
+    updateMemberAccess(userId: $userId, input: $input) { id accessScope modules companyIds canDeleteExpenses canDeleteIncome }
+  }
+`;
+
+export const REMOVE_MEMBER = gql`
+  mutation RemoveMember($userId: ID!) { removeMember(userId: $userId) }
+`;
+
+export const LOCK_MONTH = gql`
+  mutation LockMonth($year: Int!, $month: Int!) { lockMonth(year: $year, month: $month) }
+`;
+
+export const UNLOCK_MONTH = gql`
+  mutation UnlockMonth($year: Int!, $month: Int!) { unlockMonth(year: $year, month: $month) }
+`;
+
+export const STOP_RECURRING = gql`
+  mutation StopRecurring($id: ID!) { stopRecurring(id: $id) }
 `;

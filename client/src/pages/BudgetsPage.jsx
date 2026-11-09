@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import {
   Plus,
+  Pencil,
   Trash2,
   AlertTriangle,
   CheckCircle,
@@ -15,15 +16,18 @@ import {
   Target,
   Layers,
 } from 'lucide-react';
-import { GET_ALL_BUDGET_USAGES, GET_COMPANIES, GET_CATEGORIES } from '../graphql/queries';
-import { CREATE_BUDGET_BUCKET, DELETE_BUDGET_BUCKET } from '../graphql/mutations';
+import { GET_ALL_BUDGET_USAGES, GET_BUDGET_BUCKETS, GET_BUDGET_USAGE, GET_BUDGET_BUCKET, GET_COMPANIES, GET_CATEGORIES } from '../graphql/queries';
+import { CREATE_BUDGET_BUCKET, UPDATE_BUDGET_BUCKET, DELETE_BUDGET_BUCKET } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { CategorySelect } from '../components/common/CategorySelect';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 export const BudgetsPage = () => {
-  const { activeCompanyId } = useAuthStore();
+  const { activeCompanyId, user } = useAuthStore();
+  const canWrite = !user?.role || ['owner', 'admin', 'superadmin'].includes(user.role);
   const [showModal, setShowModal] = useState(false);
+  const [editingBucketId, setEditingBucketId] = useState(null);
+  const [usageNote, setUsageNote] = useState('');
 
   // Form state
   const [companyId, setCompanyId] = useState(activeCompanyId || '');
@@ -54,8 +58,15 @@ export const BudgetsPage = () => {
   });
 
   const [createBucket, { loading: creating }] = useMutation(CREATE_BUDGET_BUCKET);
+  const [updateBucket] = useMutation(UPDATE_BUDGET_BUCKET);
+  const [loadUsage] = useLazyQuery(GET_BUDGET_USAGE, { fetchPolicy: 'network-only' });
+  const [loadBucket] = useLazyQuery(GET_BUDGET_BUCKET, { fetchPolicy: 'network-only' });
   const [deleteBucket] = useMutation(DELETE_BUDGET_BUCKET);
 
+  const { data: bucketData } = useQuery(GET_BUDGET_BUCKETS, {
+    variables: { companyId: activeCompanyId || null },
+  });
+  const bucketCount = bucketData?.budgetBuckets?.length || 0;
   const usages = data?.allBudgetUsages || [];
 
   // Summary Metrics
@@ -93,20 +104,22 @@ export const BudgetsPage = () => {
       }));
 
     try {
-      await createBucket({
-        variables: {
-          input: {
-            companyId: companyId || companies[0]?.id,
-            categoryId,
-            categoryName: selectedCat?.name || '',
-            name,
-            limitAmount: parseFloat(limitAmount),
-            period,
-            alertThreshold: parseFloat(alertThreshold),
-            subcatBudgets: subcatBudgets.length > 0 ? subcatBudgets : undefined,
-          },
-        },
-      });
+      const input = {
+        companyId: companyId || companies[0]?.id,
+        categoryId,
+        categoryName: selectedCat?.name || '',
+        name,
+        limitAmount: parseFloat(limitAmount),
+        period,
+        alertThreshold: parseFloat(alertThreshold),
+        subcatBudgets: subcatBudgets.length > 0 ? subcatBudgets : undefined,
+      };
+      if (editingBucketId) {
+        await updateBucket({ variables: { id: editingBucketId, input } });
+      } else {
+        await createBucket({ variables: { input } });
+      }
+      setEditingBucketId(null);
       setShowModal(false);
       setName('');
       setLimitAmount('');
@@ -139,12 +152,20 @@ export const BudgetsPage = () => {
     return '#10b981';
   };
 
-  const toggleExpand = (id) => {
-    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleExpand = async (id) => {
+    const opening = !expandedCards[id];
+    setExpandedCards((prev) => ({ ...prev, [id]: opening }));
+    if (opening) {
+      const res = await loadUsage({ variables: { bucketId: id } });
+      const usage = res.data?.budgetUsage;
+      if (usage) {
+        setUsageNote(`${usage.bucket?.name || 'Budget'}: ₹${Number(usage.usedAmount).toLocaleString('en-IN')} used, ₹${Number(usage.remainingAmount).toLocaleString('en-IN')} remaining`);
+      }
+    }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Top Header Card */}
       <div
         className="card"
@@ -160,19 +181,22 @@ export const BudgetsPage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.65rem' }}>Budget Buckets & Spending Caps</h1>
+            <h1 style={{ fontSize: '1.65rem' }}>Budgets</h1>
             <span className="badge badge-primary">
-              {usages.length} Active Buckets
+              {bucketCount || usages.length} Active Buckets
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Enforce spending discipline with category-level caps and optional sub-category limit allocations
+            Set a limit for a category. You get one email when spending crosses the alert.
           </p>
+          {usageNote && <p style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>{usageNote}</p>}
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
-          <Plus size={15} /> + Create Budget Bucket
+        {canWrite && (
+        <button className="btn btn-primary btn-sm" onClick={() => { setEditingBucketId(null); setShowModal(true); }}>
+          <Plus size={15} /> Add budget
         </button>
+        )}
       </div>
 
       {/* Overall Budget Health Gauge Strip */}
@@ -301,6 +325,26 @@ export const BudgetsPage = () => {
                     </div>
                   </div>
 
+                  {canWrite && (
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    title="Edit budget"
+                    onClick={async () => {
+                      const res = await loadBucket({ variables: { id: bucket.id } });
+                      const record = res.data?.budgetBucket || bucket;
+                      setEditingBucketId(record.id);
+                      setCompanyId(record.companyId || '');
+                      setCategoryId(record.categoryId || '');
+                      setName(record.name || '');
+                      setLimitAmount(String(record.limitAmount ?? ''));
+                      setPeriod(record.period || 'monthly');
+                      setAlertThreshold(String(record.alertThreshold ?? 80));
+                      setShowModal(true);
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <button
                     className="btn btn-secondary btn-icon"
                     onClick={() => setBucketToDelete(bucket.id)}
@@ -309,6 +353,8 @@ export const BudgetsPage = () => {
                   >
                     <Trash2 size={13} />
                   </button>
+                  </div>
+                  )}
                 </div>
 
                 {/* Main Progress Bar */}
@@ -478,7 +524,7 @@ export const BudgetsPage = () => {
                   <Target size={18} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Create Budget Bucket</h3>
+                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>{editingBucketId ? 'Edit budget' : 'New budget'}</h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Set spending thresholds to prevent budget overruns
                   </span>
@@ -495,7 +541,7 @@ export const BudgetsPage = () => {
             <form onSubmit={handleCreate}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Legal Entity</label>
+                  <label className="form-label">Company</label>
                   <select
                     className="select"
                     value={companyId}
@@ -636,7 +682,7 @@ export const BudgetsPage = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
-                  {creating ? 'Creating...' : 'Create Budget'}
+                  {creating ? 'Saving...' : editingBucketId ? 'Update Budget' : 'Create Budget'}
                 </button>
               </div>
             </form>

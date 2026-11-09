@@ -3,18 +3,19 @@ import { ChatSession } from '../../models/index.js';
 import { generateChatReply } from '../../services/chatService.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { logActivity } from '../../services/activityService.js';
+import { assertWorkspace } from '../../utils/access.js';
 
 export const chatResolvers = {
   Query: {
     chatSession: async (_, { sessionId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       return ChatSession.findOne({ sessionId, orgId: context.orgId });
     },
   },
 
   Mutation: {
     sendChatMessage: async (_, { sessionId, message, activeCompanyId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
 
       if (!sessionId || !message || !message.trim()) {
         throw new GraphQLError('Session ID and message are required', {
@@ -75,7 +76,7 @@ export const chatResolvers = {
     },
 
     clearChatSession: async (_, { sessionId }, context) => {
-      requireAuth(context);
+      await assertWorkspace(context);
       const result = await ChatSession.findOneAndDelete({ sessionId, orgId: context.orgId });
       return !!result;
     },

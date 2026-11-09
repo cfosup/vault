@@ -3,6 +3,35 @@
  * Tracks incoming API calls, GraphQL operations, status codes, and error logs in real-time.
  */
 
+import mongoose from 'mongoose';
+
+const endpointSchema = new mongoose.Schema({
+  key: { type: String, unique: true, index: true },
+  endpoint: String,
+  path: String,
+  method: String,
+  calls: { type: Number, default: 0 },
+  errorCount: { type: Number, default: 0 },
+  lastCalledAt: Date,
+});
+
+const errorSchema = new mongoose.Schema({
+  endpoint: String,
+  statusCode: Number,
+  errorMessage: String,
+  timestamp: { type: Date, default: Date.now },
+});
+
+const totalsSchema = new mongoose.Schema({
+  singleton: { type: String, default: 'global', unique: true },
+  totalCalls: { type: Number, default: 0 },
+  totalErrors: { type: Number, default: 0 },
+});
+
+const EndpointMetric = mongoose.models.ApiEndpointMetric || mongoose.model('ApiEndpointMetric', endpointSchema);
+const ApiErrorLog = mongoose.models.ApiErrorLogEntry || mongoose.model('ApiErrorLogEntry', errorSchema);
+const ApiTotals = mongoose.models.ApiTotals || mongoose.model('ApiTotals', totalsSchema);
+
 class ApiMetricsService {
   constructor() {
     this.endpoints = new Map();
@@ -12,7 +41,7 @@ class ApiMetricsService {
     this.totalErrors = 0;
   }
 
-  recordRequest(endpointName, path, method, statusCode, errorMessage = null) {
+  async recordRequest(endpointName, path, method, statusCode, errorMessage = null) {
     this.totalCalls++;
     const isError = statusCode >= 400 || !!errorMessage;
     if (isError) this.totalErrors++;
@@ -37,6 +66,37 @@ class ApiMetricsService {
 
     this.endpoints.set(key, existing);
 
+    if (mongoose.connection.readyState === 1) {
+      const callsInc = 1;
+      const errorsInc = isError ? 1 : 0;
+      ApiTotals.updateOne(
+        { singleton: 'global' },
+        { $inc: { totalCalls: callsInc, totalErrors: errorsInc }, $setOnInsert: { singleton: 'global' } },
+        { upsert: true }
+      ).catch(() => {});
+      EndpointMetric.updateOne(
+        { key },
+        {
+          $inc: { calls: callsInc, errorCount: errorsInc },
+          $set: {
+            endpoint: endpointName,
+            path,
+            method,
+            lastCalledAt: new Date(),
+          },
+        },
+        { upsert: true }
+      ).catch(() => {});
+      if (isError && errorMessage) {
+        ApiErrorLog.create({
+          endpoint: endpointName,
+          statusCode: statusCode || 500,
+          errorMessage: String(errorMessage).substring(0, 300),
+          timestamp: new Date(),
+        }).catch(() => {});
+      }
+    }
+
     if (isError && errorMessage) {
       this.recentErrors.unshift({
         id: `err-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -51,7 +111,42 @@ class ApiMetricsService {
     }
   }
 
-  getMetrics() {
+  async getMetrics() {
+    if (mongoose.connection.readyState === 1) {
+      const [totals, endpoints, errors] = await Promise.all([
+        ApiTotals.findOne({ singleton: 'global' }),
+        EndpointMetric.find({}).sort({ calls: -1 }).limit(50),
+        ApiErrorLog.find({}).sort({ timestamp: -1 }).limit(this.maxRecentErrors),
+      ]);
+      const totalCalls = totals?.totalCalls || 0;
+      const totalErrors = totals?.totalErrors || 0;
+      return {
+        totalCalls,
+        totalErrors,
+        overallSuccessRate: totalCalls > 0
+          ? Number((((totalCalls - totalErrors) / totalCalls) * 100).toFixed(1))
+          : 100,
+        endpoints: endpoints.map((row) => ({
+          endpoint: row.endpoint,
+          path: row.path,
+          method: row.method,
+          calls: row.calls,
+          errors: row.errorCount,
+          successRate: row.calls > 0
+            ? Number((((row.calls - row.errorCount) / row.calls) * 100).toFixed(1))
+            : 100,
+          lastCalledAt: row.lastCalledAt ? row.lastCalledAt.toISOString() : new Date().toISOString(),
+        })),
+        recentErrors: errors.map((row) => ({
+          id: row._id.toString(),
+          endpoint: row.endpoint,
+          statusCode: row.statusCode,
+          errorMessage: row.errorMessage,
+          timestamp: row.timestamp ? row.timestamp.toISOString() : new Date().toISOString(),
+        })),
+      };
+    }
+
     const endpointsList = Array.from(this.endpoints.values()).sort(
       (a, b) => b.calls - a.calls
     );

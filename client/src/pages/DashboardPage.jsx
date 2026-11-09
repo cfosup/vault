@@ -50,6 +50,7 @@ import {
   GET_COMPANIES,
   GET_COMPANY_SPEND_BREAKDOWN,
   GET_COMPANY_INCOME_USAGE,
+  GET_ALL_COMPANIES_INCOME_USAGE,
 } from '../graphql/queries';
 
 // Generic corporate data visualization palette (standard finance, no neon AI violet/fuchsia)
@@ -79,6 +80,11 @@ const CompanyIncomeUsageSection = ({ companies, initialCompanyId }) => {
     }
   }, [initialCompanyId, selectedCompanyId]);
 
+  const { data: allUsageData } = useQuery(GET_ALL_COMPANIES_INCOME_USAGE, {
+    fetchPolicy: 'cache-and-network',
+  });
+  const allUsage = allUsageData?.allCompaniesIncomeUsage || [];
+
   const { data, loading, error, refetch } = useQuery(GET_COMPANY_INCOME_USAGE, {
     variables: { companyId: selectedCompanyId },
     skip: !selectedCompanyId,
@@ -105,6 +111,17 @@ const CompanyIncomeUsageSection = ({ companies, initialCompanyId }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {allUsage.length > 0 && (
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', padding: '1rem 1.25rem' }}>
+          <strong style={{ fontSize: '0.9rem' }}>All companies</strong>
+          {allUsage.map((row) => (
+            <div key={row.companyId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <span>{row.companyName}</span>
+              <span>Income ₹{Number(row.totalIncome).toLocaleString('en-IN')} · Used ₹{Number(row.totalUtilized).toLocaleString('en-IN')} · Left ₹{Number(row.remainingBalance).toLocaleString('en-IN')}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Control Bar: Company Selector & Refresh */}
       <div
         className="card"
@@ -160,7 +177,7 @@ const CompanyIncomeUsageSection = ({ companies, initialCompanyId }) => {
       {loading && !report ? (
         <div className="card" style={{ padding: '3.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
           <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 0.75rem auto' }} />
-          <div>Loading Company Income Usage metrics...</div>
+          <div>Loading how this income was used...</div>
         </div>
       ) : error ? (
         <div className="card" style={{ padding: '2rem', borderLeft: '4px solid var(--danger)', color: 'var(--danger)' }}>
@@ -743,7 +760,7 @@ export const DashboardPage = () => {
   }, [summary, categoryBreakdown, companySpend]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Hero Header & Filter Bar */}
       <div
         className="card"
@@ -759,13 +776,13 @@ export const DashboardPage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800 }}>Financial Intelligence</h1>
+            <h1 style={{ fontSize: '1.65rem', fontWeight: 800 }}>Overview</h1>
             <span className="badge badge-primary">
-              {activeCompany ? activeCompany.name : 'All Consolidated'}
+              {activeCompany ? activeCompany.name : 'All companies'}
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Multi-entity treasury overview, cash burn rate, and chart of accounts distribution
+            Income, expenses, and what is left for the period you pick.
           </p>
         </div>
 
@@ -823,7 +840,7 @@ export const DashboardPage = () => {
           onClick={() => setActiveTab('overview')}
           style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, fontSize: '0.85rem' }}
         >
-          <Layers size={15} /> Executive Overview
+          <Layers size={15} /> Overview
         </button>
         <button
           type="button"
@@ -831,7 +848,7 @@ export const DashboardPage = () => {
           onClick={() => setActiveTab('income_usage')}
           style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, fontSize: '0.85rem' }}
         >
-          <TrendingUp size={15} /> Company Income Usage
+          <TrendingUp size={15} /> How income was used
         </button>
       </div>
 
@@ -998,11 +1015,11 @@ export const DashboardPage = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Building2 size={18} style={{ color: 'var(--primary)' }} />
-              <h2 style={{ fontSize: '1.15rem' }}>Legal Entity Financial Breakdown</h2>
-              <span className="badge badge-neutral">{companySpend.length} Entities</span>
+              <h2 style={{ fontSize: '1.15rem' }}>By company</h2>
+              <span className="badge badge-neutral">{companySpend.length} companies</span>
             </div>
             <span style={{ fontSize: '0.785rem', color: 'var(--text-muted)' }}>
-              Click any entity card to focus workspace
+              Click a company to focus on it
             </span>
           </div>
 
@@ -1105,7 +1122,7 @@ export const DashboardPage = () => {
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '360px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ fontSize: '1.15rem' }}>Cash Flow Trend</h2>
+              <h2 style={{ fontSize: '1.15rem' }}>Money over time</h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>6-month revenue vs expenditure area</span>
             </div>
             {activeCompany && <span className="badge badge-neutral">{activeCompany.name}</span>}
@@ -1160,7 +1177,7 @@ export const DashboardPage = () => {
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '360px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ fontSize: '1.15rem' }}>Spend by Category</h2>
+              <h2 style={{ fontSize: '1.15rem' }}>Spending by category</h2>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Proportional allocation across chart of accounts</span>
             </div>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -1256,7 +1273,7 @@ export const DashboardPage = () => {
         {/* Top Vendors */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '1.15rem' }}>Top Payees & Vendors</h2>
+            <h2 style={{ fontSize: '1.15rem' }}>Who you paid most</h2>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Ranked by expenditure volume</span>
           </div>
 
@@ -1313,7 +1330,7 @@ export const DashboardPage = () => {
         {/* Recent Transaction Stream */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '1.15rem' }}>Recent Ledger Activity</h2>
+            <h2 style={{ fontSize: '1.15rem' }}>Recent activity</h2>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Latest disbursements</span>
           </div>
 

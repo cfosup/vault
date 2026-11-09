@@ -28,7 +28,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
 } from 'lucide-react';
-import { GET_ADMIN_DASHBOARD } from '../graphql/queries';
+import { GET_ADMIN_DASHBOARD, GET_ADMIN_ACTIVITIES, GET_ADMIN_API_METRICS, GET_ADMIN_CHATBOT_USAGE, GET_ADMIN_USER_DETAIL } from '../graphql/queries';
 import { ADMIN_LOGIN, UPDATE_USER_ROLE } from '../graphql/mutations';
 import { formatDisplayDate } from '../utils/dateUtils';
 
@@ -96,9 +96,29 @@ export const AdminDashboardPage = () => {
   const payload = data?.adminDashboard;
   const stats = payload?.stats;
   const users = payload?.users || [];
-  const activities = payload?.recentActivities || [];
-  const apiMetrics = payload?.apiMetrics;
-  const chatbotUsage = payload?.chatbotUsage || [];
+  const { data: metricsData } = useQuery(GET_ADMIN_API_METRICS, {
+    skip: !adminToken || activeTab !== 'apimonitor',
+    fetchPolicy: 'network-only',
+  });
+  const { data: chatbotData } = useQuery(GET_ADMIN_CHATBOT_USAGE, {
+    skip: !adminToken || activeTab !== 'chatbot',
+    fetchPolicy: 'network-only',
+  });
+  const { data: activityData } = useQuery(GET_ADMIN_ACTIVITIES, {
+    variables: { limit: 40 },
+    skip: !adminToken || activeTab !== 'activity',
+    fetchPolicy: 'network-only',
+  });
+  const { data: userDetailData } = useQuery(GET_ADMIN_USER_DETAIL, {
+    variables: { userId: selectedUser?.id },
+    skip: !adminToken || !selectedUser?.id,
+    fetchPolicy: 'network-only',
+  });
+
+  const activities = activityData?.adminActivityLogs || payload?.recentActivities || [];
+  const apiMetrics = metricsData?.adminApiMetrics || payload?.apiMetrics;
+  const chatbotUsage = chatbotData?.adminChatbotUsage || payload?.chatbotUsage || [];
+  const viewedUser = userDetailData?.adminUserDetail || selectedUser;
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -984,7 +1004,7 @@ export const AdminDashboardPage = () => {
             TAB 2: API ENDPOINTS & ERROR MONITOR (EXPLICIT REQUIREMENT!)
            ------------------------------------------------------------- */}
         {activeTab === 'apimonitor' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="page">
             {/* Top API Health Summary */}
             <div
               style={{

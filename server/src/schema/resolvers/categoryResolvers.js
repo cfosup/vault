@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { Category } from '../../models/index.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireWriter } from '../../middleware/auth.js';
 import { seedCompanyCoreCategories } from '../../services/seedService.js';
 
 export const categoryResolvers = {
@@ -48,7 +48,7 @@ export const categoryResolvers = {
 
   Mutation: {
     createCategory: async (_, { input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const { companyId, name, group, groupLabel, subcategories } = input;
 
       if (!name || !name.trim()) {
@@ -76,7 +76,7 @@ export const categoryResolvers = {
     },
 
     updateCategory: async (_, { id, input }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const updateData = {};
       if (input.name !== undefined) updateData.name = input.name.trim();
       if (input.group !== undefined) updateData.group = input.group.trim().toUpperCase();
@@ -105,13 +105,13 @@ export const categoryResolvers = {
     },
 
     deleteCategory: async (_, { id }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const result = await Category.findOneAndDelete({ _id: id, orgId: context.orgId });
       return !!result;
     },
 
     deleteCategorySection: async (_, { companyId, group }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const compObjectId = new mongoose.Types.ObjectId(companyId);
       const cleanGroup = group.trim().toUpperCase();
 
@@ -125,7 +125,7 @@ export const categoryResolvers = {
     },
 
     resetCompanyCategoriesToCore: async (_, { companyId }, context) => {
-      requireAuth(context);
+      requireWriter(context);
       const compObjectId = new mongoose.Types.ObjectId(companyId);
 
       // Remove existing custom categories for this company
@@ -144,7 +144,7 @@ export const categoryResolvers = {
     },
 
     addSubcategory: async (_, { categoryId, subcategoryName, items }, context) => {
-      requireAuth(context);
+      requireWriter(context);
 
       let category = await Category.findOne({
         _id: categoryId,
@@ -169,7 +169,7 @@ export const categoryResolvers = {
     },
 
     updateSubcategoryItems: async (_, { categoryId, subcategoryName, items }, context) => {
-      requireAuth(context);
+      requireWriter(context);
 
       const category = await Category.findOne({
         _id: categoryId,
@@ -197,7 +197,7 @@ export const categoryResolvers = {
     },
 
     deleteSubcategory: async (_, { categoryId, subcategoryName }, context) => {
-      requireAuth(context);
+      requireWriter(context);
 
       const category = await Category.findOne({
         _id: categoryId,

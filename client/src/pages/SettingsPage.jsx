@@ -1,38 +1,33 @@
 import React, { useState } from 'react';
 
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import {
   CreditCard,
   Plus,
+  Pencil,
   Trash2,
-  Shield,
   User,
   Building,
   X,
   Download,
   FileSpreadsheet,
   CheckCircle,
-  Globe,
   Sliders,
-  DollarSign,
   Landmark,
   Wallet,
   Smartphone,
-  AlertTriangle,
-  Mail,
-  Send,
-  Bell,
-  Check,
-  Sparkles,
 } from 'lucide-react';
-import { GET_PAYMENT_METHODS } from '../graphql/queries';
-import { CREATE_PAYMENT_METHOD, DELETE_PAYMENT_METHOD, SEND_TEST_EMAIL } from '../graphql/mutations';
+import { GET_PAYMENT_METHODS, GET_PAYMENT_METHOD, GET_ME, GET_MY_ACTIVITY } from '../graphql/queries';
+import { CREATE_PAYMENT_METHOD, UPDATE_PAYMENT_METHOD, DELETE_PAYMENT_METHOD } from '../graphql/mutations';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { OrgAccessPanel } from '../components/settings/OrgAccessPanel';
 
 export const SettingsPage = () => {
   const { user, org, token, activeCompanyId } = useAuthStore();
+  const canWrite = !user?.role || ['owner', 'admin', 'superadmin'].includes(user.role);
   const [showModal, setShowModal] = useState(false);
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [name, setName] = useState('');
   const [type, setType] = useState('bank');
   const [accountNumber, setAccountNumber] = useState('');
@@ -41,28 +36,28 @@ export const SettingsPage = () => {
   const [pmToDelete, setPmToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Resend Email Test state
-  const [testEmailStatus, setTestEmailStatus] = useState(null);
-  const [sendTestEmailMutation, { loading: sendingTestEmail }] = useMutation(SEND_TEST_EMAIL);
-
   const { data, loading, refetch } = useQuery(GET_PAYMENT_METHODS);
+  const { data: meData } = useQuery(GET_ME);
+  const { data: activityData } = useQuery(GET_MY_ACTIVITY, { variables: { limit: 20 } });
   const [createPaymentMethod, { loading: creating }] = useMutation(CREATE_PAYMENT_METHOD);
+  const [updatePaymentMethod] = useMutation(UPDATE_PAYMENT_METHOD);
   const [deletePaymentMethod] = useMutation(DELETE_PAYMENT_METHOD);
+  const [loadPaymentMethod] = useLazyQuery(GET_PAYMENT_METHOD, { fetchPolicy: 'network-only' });
+  const account = meData?.me || user;
+  const activityLogs = activityData?.myActivityLogs || [];
 
   const paymentMethods = data?.paymentMethods || [];
 
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await createPaymentMethod({
-        variables: {
-          input: {
-            name,
-            type,
-            accountNumber,
-          },
-        },
-      });
+      const input = { name, type, accountNumber };
+      if (editingPaymentId) {
+        await updatePaymentMethod({ variables: { id: editingPaymentId, input } });
+      } else {
+        await createPaymentMethod({ variables: { input } });
+      }
+      setEditingPaymentId(null);
       setShowModal(false);
       setName('');
       setAccountNumber('');
@@ -83,46 +78,6 @@ export const SettingsPage = () => {
       alert('Error deleting: ' + err.message);
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleSendTestEmail = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const targetEmail = user?.email;
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setTestEmailStatus({ success: false, message: 'No valid account email found for the logged-in user.' });
-      return;
-    }
-    setTestEmailStatus(null);
-    try {
-      const res = await sendTestEmailMutation({
-        variables: { email: targetEmail }
-      });
-      const result = res.data?.sendTestEmail;
-      if (result?.success) {
-        setTestEmailStatus({
-          success: true,
-          message: result.message || `Test notification email successfully sent to ${targetEmail}!`
-        });
-      } else {
-        const rawMsg = result?.message || 'Failed to dispatch email';
-        const formattedMsg = rawMsg.includes('own email address')
-          ? 'Notice: Resend default sandbox domain (onboarding@resend.dev) delivers to your account owner inbox. Add a verified custom domain at resend.com/domains to send to any address without restriction or spam filtering.'
-          : rawMsg;
-        setTestEmailStatus({
-          success: false,
-          message: formattedMsg
-        });
-      }
-    } catch (err) {
-      const rawMsg = err.message || 'Error sending email';
-      const formattedMsg = rawMsg.includes('own email address')
-        ? 'Notice: Resend default sandbox domain (onboarding@resend.dev) delivers to your account owner inbox. Add a verified custom domain at resend.com/domains to send to any address without restriction or spam filtering.'
-        : rawMsg;
-      setTestEmailStatus({
-        success: false,
-        message: formattedMsg
-      });
     }
   };
 
@@ -151,7 +106,7 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Top Header Card */}
       <div
         className="card"
@@ -166,9 +121,9 @@ export const SettingsPage = () => {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <h1 style={{ fontSize: '1.65rem' }}>Workspace Settings & Controls</h1>
+          <h1 style={{ fontSize: '1.65rem' }}>Settings</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Configure organization profile, payment accounts, financial preferences, and data exports
+            People, company details, payment accounts, and exports.
           </p>
         </div>
       </div>
@@ -193,9 +148,9 @@ export const SettingsPage = () => {
               <Building size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.1rem' }}>Organization Profile</h3>
+              <h3 style={{ fontSize: '1.1rem' }}>Organization</h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Workspace details & subscription
+                The workspace this account belongs to
               </span>
             </div>
           </div>
@@ -212,8 +167,8 @@ export const SettingsPage = () => {
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Accounting Framework</span>
-              <span className="badge badge-neutral">CORE BRIGHT (10 Sections)</span>
+              <span style={{ color: 'var(--text-muted)' }}>Categories</span>
+              <span className="badge badge-neutral">Built in</span>
             </div>
           </div>
         </div>
@@ -238,7 +193,7 @@ export const SettingsPage = () => {
             <div>
               <h3 style={{ fontSize: '1.1rem' }}>Your Account</h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Personal account details & permissions
+                Who is signed in
               </span>
             </div>
           </div>
@@ -246,11 +201,11 @@ export const SettingsPage = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Full Name</span>
-              <strong>{user?.name || 'Administrator'}</strong>
+              <strong>{account?.name || 'Administrator'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Email Address</span>
-              <strong>{user?.email || 'admin@vault.local'}</strong>
+              <strong>{account?.email || 'admin@vault.local'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', alignItems: 'center' }}>
               <span style={{ color: 'var(--text-muted)' }}>Account Status</span>
@@ -261,12 +216,87 @@ export const SettingsPage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: 'var(--text-muted)' }}>Role</span>
               <span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>
-                {user?.role || 'Admin'}
+                {account?.role || 'Admin'}
               </span>
             </div>
           </div>
         </div>
       </div>
+
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div className="settings-icon">
+              <CreditCard size={18} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.1rem' }}>Payment accounts</h3>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Cards, bank accounts, cash, and UPI you pay from.
+              </span>
+            </div>
+          </div>
+          {canWrite && (
+            <button className="btn btn-primary btn-sm" onClick={() => { setEditingPaymentId(null); setName(''); setAccountNumber(''); setType('bank'); setShowModal(true); }}>
+              <Plus size={14} /> Add account
+            </button>
+          )}
+        </div>
+
+        {paymentMethods.length === 0 ? (
+          <div className="empty-state" style={{ padding: '1.5rem 1rem' }}>
+            <div className="empty-icon"><CreditCard size={22} /></div>
+            <div className="empty-title">No payment accounts yet</div>
+            <div className="empty-desc">Add the card or account you want to pick when recording an expense.</div>
+          </div>
+        ) : (
+          <div className="payment-grid">
+            {paymentMethods.map((pm) => (
+              <div key={pm.id} className="payment-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div className="settings-icon">{getPaymentIcon(pm.type)}</div>
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{pm.name}</h4>
+                      <span className="badge badge-neutral" style={{ textTransform: 'uppercase', fontSize: '0.65rem', marginTop: '0.2rem' }}>{pm.type}</span>
+                    </div>
+                  </div>
+                  {canWrite && (
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        className="btn btn-secondary btn-icon"
+                        title="Edit payment account"
+                        onClick={async () => {
+                          const res = await loadPaymentMethod({ variables: { id: pm.id } });
+                          const record = res.data?.paymentMethod || pm;
+                          setEditingPaymentId(record.id);
+                          setName(record.name || '');
+                          setType(record.type || 'bank');
+                          setAccountNumber(record.accountNumber || '');
+                          setShowModal(true);
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button className="btn btn-secondary btn-icon" onClick={() => setPmToDelete(pm.id)} title="Remove account" style={{ color: 'var(--danger)' }}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {pm.accountNumber && (
+                  <div className="payment-number">
+                    <span>Account</span>
+                    <strong className="mono">•••• {pm.accountNumber.slice(-4)}</strong>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <OrgAccessPanel />
 
       {/* Accounting & Financial Preferences */}
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -286,9 +316,9 @@ export const SettingsPage = () => {
             <Sliders size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem' }}>Accounting & Financial Defaults</h3>
+            <h3 style={{ fontSize: '1.1rem' }}>Money defaults</h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Core Chart of Accounts defaults and financial reporting rules
+              Currency, financial year, and the budget alert
             </span>
           </div>
         </div>
@@ -308,7 +338,7 @@ export const SettingsPage = () => {
             <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Reporting Currency</span>
             <strong style={{ fontSize: '1rem' }}>₹ INR (Indian Rupee)</strong>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              Default currency token across multi-entity ledgers
+              Amounts are shown in rupees
             </span>
           </div>
 
@@ -323,10 +353,10 @@ export const SettingsPage = () => {
               gap: '0.4rem',
             }}
           >
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Fiscal Year Schedule</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Financial year</span>
             <strong style={{ fontSize: '1rem' }}>April 1 – March 31</strong>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              Standard Indian financial year reporting cycle
+              The year used for reports
             </span>
           </div>
 
@@ -341,10 +371,10 @@ export const SettingsPage = () => {
               gap: '0.4rem',
             }}
           >
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Budget Overrun Threshold</span>
-            <strong style={{ fontSize: '1rem', color: 'var(--warning)' }}>80% Warning Trigger</strong>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Budget alert</span>
+            <strong style={{ fontSize: '1rem', color: 'var(--warning)' }}>80%</strong>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              Triggers visual amber badge when spend exceeds 80%
+              The owner is emailed once a budget crosses this
             </span>
           </div>
         </div>
@@ -368,9 +398,9 @@ export const SettingsPage = () => {
             <FileSpreadsheet size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem' }}>Accounting & Audit Export Hub</h3>
+            <h3 style={{ fontSize: '1.1rem' }}>Downloads</h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Download CSV ledgers for external audit, tax filings, and ERP reconciliation
+              Save a spreadsheet of expenses, income, or categories
             </span>
           </div>
         </div>
@@ -392,10 +422,10 @@ export const SettingsPage = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Download size={16} style={{ color: 'var(--danger)' }} />
-                <strong style={{ fontSize: '0.925rem' }}>Expense Ledger CSV</strong>
+                <strong style={{ fontSize: '0.925rem' }}>Expenses</strong>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Itemized expense disbursements with date, company name, section, category, subcategory, vendor, and payment method.
+                Date, company, category, vendor, and amount.
               </p>
             </div>
             <button
@@ -403,7 +433,7 @@ export const SettingsPage = () => {
               onClick={() => handleExport('expenses')}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              <Download size={14} /> Download Expenses CSV
+              <Download size={14} /> Download expenses
             </button>
           </div>
 
@@ -423,10 +453,10 @@ export const SettingsPage = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Download size={16} style={{ color: 'var(--success)' }} />
-                <strong style={{ fontSize: '0.925rem' }}>Revenue / Income CSV</strong>
+                <strong style={{ fontSize: '0.925rem' }}>Income</strong>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Inflow receipts, operational revenue, investments, and customer payments organized by company and source.
+                Who paid you, the company, and the amount.
               </p>
             </div>
             <button
@@ -434,7 +464,7 @@ export const SettingsPage = () => {
               onClick={() => handleExport('income')}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              <Download size={14} /> Download Income CSV
+              <Download size={14} /> Download income
             </button>
           </div>
 
@@ -454,10 +484,10 @@ export const SettingsPage = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Download size={16} style={{ color: 'var(--primary)' }} />
-                <strong style={{ fontSize: '0.925rem' }}>Chart of Accounts CSV</strong>
+                <strong style={{ fontSize: '0.925rem' }}>Categories</strong>
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Master hierarchy export containing Section Letters, Section Labels, Categories, and Subcategories across all companies.
+                Categories and subcategories for every company.
               </p>
             </div>
             <button
@@ -465,234 +495,30 @@ export const SettingsPage = () => {
               onClick={() => handleExport('categories')}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              <Download size={14} /> Download Hierarchy CSV
+              <Download size={14} /> Download categories
             </button>
           </div>
         </div>
       </div>
 
-      {/* Payment Methods Section */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--primary-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--primary)',
-              }}
-            >
-              <CreditCard size={20} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '1.1rem' }}>Configured Payment Accounts</h3>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Bank accounts, corporate cards, petty cash funds, and UPI handles
-              </span>
-            </div>
-          </div>
-
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
-            <Plus size={14} /> + Add Payment Method
-          </button>
+      <div className="card activity-log">
+        <div>
+          <h3>Activity</h3>
+          <p>The latest changes in this organization.</p>
         </div>
-
-        {paymentMethods.length === 0 ? (
-          <div className="empty-state" style={{ padding: '2.5rem 1rem' }}>
-            <div className="empty-icon"><CreditCard size={24} /></div>
-            <div className="empty-title">No payment methods configured</div>
-            <div className="empty-desc">Add bank accounts, cards, or digital wallets to tag your expenditures.</div>
-          </div>
+        {activityLogs.length === 0 ? (
+          <p className="field-hint">No activity has been recorded yet.</p>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '1rem',
-            }}
-          >
-            {paymentMethods.map((pm) => (
-              <div
-                key={pm.id}
-                style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius)',
-                  padding: '1.15rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                  position: 'relative',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <div
-                      style={{
-                        width: '34px',
-                        height: '34px',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border-color)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {getPaymentIcon(pm.type)}
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{pm.name}</h4>
-                      <span className="badge badge-neutral" style={{ textTransform: 'uppercase', fontSize: '0.65rem', marginTop: '0.15rem' }}>
-                        {pm.type}
-                      </span>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-secondary btn-icon"
-                    onClick={() => setPmToDelete(pm.id)}
-                    title="Delete Account"
-                    style={{ color: 'var(--danger)' }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-
-                {pm.accountNumber && (
-                  <div
-                    style={{
-                      background: 'var(--bg-card)',
-                      padding: '0.45rem 0.65rem',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.8rem',
-                      color: 'var(--text-muted)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span>Account Number</span>
-                    <strong className="mono" style={{ color: 'var(--text-main)' }}>
-                      •••• {pm.accountNumber.slice(-4)}
-                    </strong>
-                  </div>
-                )}
+          <div className="activity-list">
+            {activityLogs.map((log) => (
+              <div key={log.id} className="activity-row">
+                <span>{log.description}{log.companyName ? ` · ${log.companyName}` : ''}</span>
+                <time>{new Date(log.createdAt).toLocaleString()}</time>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Customer Email & Communication Infrastructure (Resend) */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15))',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
-                color: '#a855f7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Mail size={20} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Customer Alerts & Email (Resend)</h3>
-                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem' }}>
-                  <Check size={11} /> Connected
-                </span>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Powered by Resend API • Automatic customer onboarding, budget threshold warnings & disbursement alerts
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
-              <Sparkles size={14} style={{ color: 'var(--primary)' }} />
-              <span>Welcome & Onboarding</span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-              Automatically sent to customers upon registration or Google OAuth sign-in with quick-start steps.
-            </p>
-          </div>
-
-          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
-              <Bell size={14} style={{ color: 'var(--warning)' }} />
-              <span>Budget Cap Alerts</span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-              Dispatched automatically when any expense pushes category spending to 100% or above its budget limit.
-            </p>
-          </div>
-
-          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-card-subtle, rgba(255,255,255,0.02))', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.85rem' }}>
-              <Send size={14} style={{ color: '#38bdf8' }} />
-              <span>Disbursement Notices</span>
-            </div>
-            <p style={{ margin: 0, fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-              Instant notifications whenever multi-income linked disbursements or material expenses occur.
-            </p>
-          </div>
-        </div>
-
-        {/* Simple Notification Test to Logged-in User */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Notification Recipient:</span>
-            <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>{user?.email || 'Logged-in Account'}</strong>
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={handleSendTestEmail}
-            disabled={sendingTestEmail}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', padding: '0 1.15rem' }}
-          >
-            <Send size={14} />
-            {sendingTestEmail ? 'Sending...' : 'Send Test Notification'}
-          </button>
-        </div>
-
-          {testEmailStatus && (
-            <div
-              style={{
-                marginTop: '0.5rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.825rem',
-                background: testEmailStatus.success ? 'var(--success-bg)' : 'var(--danger-bg)',
-                color: testEmailStatus.success ? 'var(--success)' : 'var(--danger)',
-                border: `1px solid ${testEmailStatus.success ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'color-mix(in srgb, var(--danger) 30%, transparent)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-            >
-              {testEmailStatus.success ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
-              <span>{testEmailStatus.message}</span>
-            </div>
-          )}
-        </div>
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
@@ -728,7 +554,7 @@ export const SettingsPage = () => {
                   <CreditCard size={18} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Payment Method</h3>
+                  <h3 style={{ fontSize: '1.05rem', margin: 0 }}>{editingPaymentId ? 'Edit account' : 'Add account'}</h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Add a bank account, corporate card, or digital wallet
                   </span>

@@ -1,5 +1,133 @@
 import { gql } from '@apollo/client';
 
+export const GET_MY_ACTIVITY = gql`
+  query GetMyActivity($limit: Int) {
+    myActivityLogs(limit: $limit) {
+      id
+      action
+      description
+      companyName
+      createdAt
+    }
+  }
+`;
+
+export const GET_EXPENSE = gql`
+  query GetExpense($id: ID!) {
+    expense(id: $id) {
+      id
+      companyId
+      date
+      categoryId
+      categoryName
+      subcategory
+      amount
+      vendor
+      paymentMethodId
+      notes
+      incomeId
+    }
+  }
+`;
+
+export const GET_INCOME = gql`
+  query GetIncome($id: ID!) {
+    income(id: $id) {
+      id
+      companyId
+      date
+      amount
+      source
+      notes
+    }
+  }
+`;
+
+export const GET_COMPANY = gql`
+  query GetCompany($id: ID!) {
+    company(id: $id) {
+      id
+      name
+      description
+      isActive
+      isCoreBranch
+    }
+  }
+`;
+
+export const GET_CATEGORY = gql`
+  query GetCategory($id: ID!) {
+    category(id: $id) {
+      id
+      name
+      group
+      groupLabel
+      subcategories { name items isCustom }
+    }
+  }
+`;
+
+export const GET_PAYMENT_METHOD = gql`
+  query GetPaymentMethod($id: ID!) {
+    paymentMethod(id: $id) {
+      id
+      name
+      type
+      accountNumber
+      isActive
+    }
+  }
+`;
+
+export const GET_BUDGET_BUCKET = gql`
+  query GetBudgetBucket($id: ID!) {
+    budgetBucket(id: $id) {
+      id
+      companyId
+      categoryId
+      name
+      limitAmount
+      period
+      alertThreshold
+    }
+  }
+`;
+
+export const GET_BUDGET_USAGE = gql`
+  query GetBudgetUsage($bucketId: ID!) {
+    budgetUsage(bucketId: $bucketId) {
+      usedAmount
+      remainingAmount
+      percentUsed
+      isOverBudget
+      bucket { id name limitAmount }
+    }
+  }
+`;
+
+export const GET_ADMIN_API_METRICS = gql`
+  query GetAdminApiMetrics {
+    adminApiMetrics {
+      totalCalls
+      totalErrors
+      overallSuccessRate
+      endpoints { endpoint path method calls errors successRate lastCalledAt }
+      recentErrors { id endpoint statusCode errorMessage timestamp }
+    }
+  }
+`;
+
+export const GET_ADMIN_CHATBOT_USAGE = gql`
+  query GetAdminChatbotUsage {
+    adminChatbotUsage {
+      userId
+      userName
+      sessionCount
+      totalMessagesCount
+    }
+  }
+`;
+
 export const GET_ME = gql`
   query GetMe {
     me {
@@ -9,6 +137,11 @@ export const GET_ME = gql`
       email
       role
       isEmailVerified
+      accessScope
+      modules
+      companyIds
+      canDeleteExpenses
+      canDeleteIncome
       lastLogin
     }
   }
@@ -491,6 +624,35 @@ export const GET_ADMIN_USER_DETAIL = gql`
         createdAt
       }
     }
+  }
+`;
+
+export const GET_ORG_MEMBERS = gql`
+  query GetOrgMembers {
+    orgMembers { id name email role accessScope modules companyIds canDeleteExpenses canDeleteIncome }
+    pendingInvites { id email accessScope modules companyIds canDeleteExpenses canDeleteIncome expiresAt }
+  }
+`;
+
+export const GET_INVITE_PREVIEW = gql`
+  query GetInvitePreview($token: String!) {
+    invitePreview(token: $token) { orgName email accessSummary expiresAt }
+  }
+`;
+
+export const GET_VENDOR_SUGGESTIONS = gql`
+  query GetVendorSuggestions($categoryId: ID!, $subcategory: String) {
+    vendorSuggestions(categoryId: $categoryId, subcategory: $subcategory)
+  }
+`;
+
+export const GET_MONTH_LOCKS = gql`
+  query GetMonthLocks { monthLocks { id year month } }
+`;
+
+export const GET_RECURRING = gql`
+  query GetRecurring {
+    myRecurringSchedules { id kind companyId dayOfMonth nextRunAt active label }
   }
 `;
 

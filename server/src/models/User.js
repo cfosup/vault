@@ -53,6 +53,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    passwordResetToken: {
+      type: String,
+      default: null,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+    },
+    accessScope: {
+      type: String,
+      enum: ['workspace', 'modules'],
+    },
+    modules: {
+      type: [String],
+      default: undefined,
+    },
+    companyIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Company',
+      },
+    ],
+    canDeleteExpenses: {
+      type: Boolean,
+      default: false,
+    },
+    canDeleteIncome: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

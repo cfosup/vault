@@ -8,10 +8,12 @@ import { budgetResolvers } from './budgetResolvers.js';
 import { dashboardResolvers } from './dashboardResolvers.js';
 import { chatResolvers } from './chatResolvers.js';
 import { adminResolvers } from './adminResolvers.js';
+import { featureResolvers } from './featureResolvers.js';
 
 export const resolvers = {
   Expense: expenseResolvers.Expense,
   Income: incomeResolvers.Income,
+  User: featureResolvers.User,
   Query: {
     ...authResolvers.Query,
     ...companyResolvers.Query,
@@ -23,6 +25,7 @@ export const resolvers = {
     ...dashboardResolvers.Query,
     ...chatResolvers.Query,
     ...adminResolvers.Query,
+    ...featureResolvers.Query,
   },
   Mutation: {
     ...authResolvers.Mutation,
@@ -34,6 +37,7 @@ export const resolvers = {
     ...budgetResolvers.Mutation,
     ...chatResolvers.Mutation,
     ...adminResolvers.Mutation,
+    ...featureResolvers.Mutation,
   },
 };
 

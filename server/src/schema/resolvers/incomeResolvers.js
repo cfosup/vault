@@ -1,9 +1,10 @@
 import { GraphQLError } from 'graphql';
-import { Income } from '../../models/index.js';
+import { Income, RecurringSchedule } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { logActivity } from '../../services/activityService.js';
 import { applyDateBounds } from '../../utils/dateRange.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
+import { assertRead, assertWrite, assertDelete, assertMonthOpen, applyCompanyScope, nextMonthOnDay } from '../../utils/access.js';
 
 const parseDateInput = (val) => {
   if (!val) return new Date();
@@ -50,16 +51,15 @@ export const incomeResolvers = {
   },
   Query: {
     incomes: async (_, { filter = {}, page = 1, limit = 20 }, context) => {
-      requireAuth(context);
+      const access = await assertRead(context, 'income');
 
       const query = {
         orgId: context.orgId,
-        isDeleted: { $ne: true },
+        isDeleted: filter.includeDeleted ? true : { $ne: true },
       };
 
-      if (filter.companyId) {
-        query.companyId = filter.companyId;
-      }
+      if (filter.companyId) query.companyId = filter.companyId;
+      applyCompanyScope(query, access, filter.companyId);
       applyDateBounds(query, filter.startDate, filter.endDate);
       if (filter.search) {
         const searchRegex = { $regex: filter.search, $options: 'i' };
@@ -102,7 +102,7 @@ export const incomeResolvers = {
 
   Mutation: {
     createIncomes: async (_, { inputs }, context) => {
-      requireAuth(context);
+      await assertWrite(context, 'income');
 
       if (!inputs || !Array.isArray(inputs) || inputs.length === 0) {
         throw new GraphQLError('At least one income must be provided.', {
@@ -111,6 +111,10 @@ export const incomeResolvers = {
       }
 
       await assertCompaniesInOrg(inputs.map((input) => input.companyId), context.orgId);
+      for (const input of inputs) {
+        await assertWrite(context, 'income', input.companyId);
+        await assertMonthOpen(context.orgId, parseDateInput(input.date));
+      }
 
       const documents = inputs.map((input) => {
         if (!input.companyId || !input.source || input.amount === undefined) {
@@ -142,11 +146,30 @@ export const incomeResolvers = {
         metadata: { count: createdIncomes.length },
       });
 
+      if (inputs.length === 1 && inputs[0].makeRecurring && createdIncomes[0]) {
+        const first = createdIncomes[0];
+        const runDate = first.date instanceof Date ? first.date : new Date(first.date);
+        await RecurringSchedule.create({
+          orgId: context.orgId,
+          companyId: first.companyId,
+          createdBy: context.userId,
+          kind: 'income',
+          dayOfMonth: runDate.getUTCDate(),
+          nextRunAt: nextMonthOnDay(runDate, runDate.getUTCDate()),
+          payload: { amount: first.amount, source: first.source, notes: first.notes },
+        });
+      }
+
       return createdIncomes;
     },
 
     updateIncome: async (_, { id, input }, context) => {
-      requireAuth(context);
+      const current = await Income.findOne({ _id: id, orgId: context.orgId, isDeleted: { $ne: true } });
+      if (!current) {
+        throw new GraphQLError('Income not found', { extensions: { code: 'NOT_FOUND' } });
+      }
+      await assertWrite(context, 'income', input.companyId || current.companyId);
+      await assertMonthOpen(context.orgId, input.date ? parseDateInput(input.date) : current.date);
 
       if (input.companyId) {
         await assertCompaniesInOrg([input.companyId], context.orgId);
@@ -175,26 +198,41 @@ export const incomeResolvers = {
     },
 
     deleteIncome: async (_, { id }, context) => {
-      requireAuth(context);
+      const current = await Income.findOne({ _id: id, orgId: context.orgId, isDeleted: { $ne: true } });
+      if (!current) return false;
+      await assertDelete(context, 'income', current.companyId);
+      await assertMonthOpen(context.orgId, current.date);
+      current.isDeleted = true;
+      await current.save();
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'DELETE_INCOME',
+        entityType: 'Income',
+        entityId: current._id,
+        companyId: current.companyId,
+        description: `Deleted income receipt of ₹${Number(current.amount || 0).toLocaleString()} (${current.source})`,
+      });
+      return true;
+    },
 
-      const income = await Income.findOneAndUpdate(
-        { _id: id, orgId: context.orgId, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true } }
-      );
-
-      if (income) {
-        logActivity({
-          orgId: context.orgId,
-          userId: context.userId,
-          action: 'DELETE_INCOME',
-          entityType: 'Income',
-          entityId: income._id,
-          companyId: income.companyId,
-          description: `Deleted income receipt of ₹${Number(income.amount || 0).toLocaleString()} (${income.source})`,
-        });
-      }
-
-      return !!income;
+    restoreIncome: async (_, { id }, context) => {
+      const current = await Income.findOne({ _id: id, orgId: context.orgId, isDeleted: true });
+      if (!current) return false;
+      await assertWrite(context, 'income', current.companyId);
+      await assertMonthOpen(context.orgId, current.date);
+      current.isDeleted = false;
+      await current.save();
+      logActivity({
+        orgId: context.orgId,
+        userId: context.userId,
+        action: 'RESTORE_INCOME',
+        entityType: 'Income',
+        entityId: current._id,
+        companyId: current.companyId,
+        description: `Restored income receipt of ₹${Number(current.amount || 0).toLocaleString()} (${current.source})`,
+      });
+      return true;
     },
   },
 };

@@ -1,0 +1,79 @@
+type OrgMember {
+  id: ID!
+  name: String!
+  email: String!
+  role: String!
+  accessScope: String
+  modules: [String!]!
+  companyIds: [ID!]!
+  canDeleteExpenses: Boolean!
+  canDeleteIncome: Boolean!
+}
+
+type PendingInvite {
+  id: ID!
+  email: String!
+  accessScope: String!
+  modules: [String!]!
+  companyIds: [ID!]!
+  canDeleteExpenses: Boolean!
+  canDeleteIncome: Boolean!
+  expiresAt: String!
+}
+
+type InvitePreview {
+  orgName: String!
+  email: String!
+  accessSummary: String!
+  expiresAt: String!
+}
+
+type MonthLockEntry {
+  id: ID!
+  year: Int!
+  month: Int!
+}
+
+type RecurringScheduleEntry {
+  id: ID!
+  kind: String!
+  companyId: ID!
+  dayOfMonth: Int!
+  nextRunAt: String!
+  active: Boolean!
+  label: String!
+}
+
+input MemberAccessInput {
+  email: String
+  accessScope: String!
+  modules: [String!]
+  companyIds: [ID!]
+  canDeleteExpenses: Boolean
+  canDeleteIncome: Boolean
+}
+
+input AcceptInviteInput {
+  token: String!
+  name: String!
+  password: String!
+}
+
+extend type Query {
+  orgMembers: [OrgMember!]!
+  pendingInvites: [PendingInvite!]!
+  invitePreview(token: String!): InvitePreview!
+  vendorSuggestions(categoryId: ID!, subcategory: String): [String!]!
+  monthLocks: [MonthLockEntry!]!
+  myRecurringSchedules: [RecurringScheduleEntry!]!
+}
+
+extend type Mutation {
+  inviteMember(input: MemberAccessInput!): EmailResult!
+  acceptInvite(input: AcceptInviteInput!): AuthPayload!
+  updateMemberAccess(userId: ID!, input: MemberAccessInput!): OrgMember!
+  removeMember(userId: ID!): Boolean!
+  lockMonth(year: Int!, month: Int!): Boolean!
+  unlockMonth(year: Int!, month: Int!): Boolean!
+  stopRecurring(id: ID!): Boolean!
+}

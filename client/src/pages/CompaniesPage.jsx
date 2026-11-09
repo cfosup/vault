@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import {
   Building2,
   Plus,
@@ -21,7 +21,7 @@ import {
   Layers,
   Save,
 } from 'lucide-react';
-import { GET_COMPANIES, GET_CATEGORIES } from '../graphql/queries';
+import { GET_COMPANIES, GET_COMPANY, GET_CATEGORIES } from '../graphql/queries';
 import {
   CREATE_COMPANY,
   UPDATE_COMPANY,
@@ -30,6 +30,8 @@ import {
   DELETE_CATEGORY,
   DELETE_CATEGORY_SECTION,
   ADD_SUBCATEGORY,
+  UPDATE_CATEGORY,
+  UPDATE_SUBCATEGORY_ITEMS,
   DELETE_SUBCATEGORY,
   RESET_COMPANY_CATEGORIES_TO_CORE,
 } from '../graphql/mutations';
@@ -37,6 +39,10 @@ import { ConfirmModal } from '../components/common/ConfirmModal';
 import { useAuthStore } from '../store/authStore';
 
 export const CompaniesPage = () => {
+  const user = useAuthStore((state) => state.user);
+  const canManageOrg = !user?.role || user.role === 'owner' || user.role === 'superadmin';
+  const canWrite = canManageOrg || user?.role === 'admin';
+  const [loadCompany] = useLazyQuery(GET_COMPANY, { fetchPolicy: 'network-only' });
   // Company CRUD state
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
@@ -100,6 +106,8 @@ export const CompaniesPage = () => {
   const [deleteCategory] = useMutation(DELETE_CATEGORY);
   const [deleteCategorySection] = useMutation(DELETE_CATEGORY_SECTION);
   const [addSubcategory] = useMutation(ADD_SUBCATEGORY);
+  const [updateCategory] = useMutation(UPDATE_CATEGORY);
+  const [updateSubcategoryItems] = useMutation(UPDATE_SUBCATEGORY_ITEMS);
   const [deleteSubcategory] = useMutation(DELETE_SUBCATEGORY);
   const [resetToCore, { loading: resettingCore }] = useMutation(RESET_COMPANY_CATEGORIES_TO_CORE);
 
@@ -144,11 +152,18 @@ export const CompaniesPage = () => {
     setShowCompanyModal(true);
   };
 
-  const handleOpenEdit = (c) => {
-    setEditingCompany(c);
-    setName(c.name);
-    setDescription(c.description || '');
-    setIsCoreBranch(!!c.isCoreBranch);
+  const handleOpenEdit = async (c) => {
+    let record = c;
+    try {
+      const res = await loadCompany({ variables: { id: c.id } });
+      if (res.data?.company) record = res.data.company;
+    } catch {
+      record = c;
+    }
+    setEditingCompany(record);
+    setName(record.name);
+    setDescription(record.description || '');
+    setIsCoreBranch(!!record.isCoreBranch);
     setCompanyError('');
     setShowCompanyModal(true);
   };
@@ -416,7 +431,7 @@ export const CompaniesPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div className="page">
       {/* Top Header Card */}
       <div
         className="card"
@@ -432,19 +447,21 @@ export const CompaniesPage = () => {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.65rem' }}>Corporate Entities & Chart of Accounts</h1>
+            <h1 style={{ fontSize: '1.65rem' }}>Companies</h1>
             <span className="badge badge-primary">
-              {companies.length} Registered Entities
+              {companies.length} companies
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Manage subsidiary entities, define individual charts of accounts, and structure CORE BRIGHT operational sections
+            Add each company you want to track separately.
           </p>
         </div>
 
+        {canManageOrg && (
         <button className="btn btn-primary btn-sm" onClick={handleOpenCreate}>
-          <Plus size={15} /> + Register Company
+          <Plus size={15} /> Add company
         </button>
+        )}
       </div>
 
       {/* Grid of Companies */}
@@ -498,6 +515,7 @@ export const CompaniesPage = () => {
                   </div>
                 </div>
 
+                {canManageOrg && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <button
                     className="btn btn-secondary btn-icon"
@@ -515,6 +533,7 @@ export const CompaniesPage = () => {
                     <Trash2 size={13} />
                   </button>
                 </div>
+                )}
               </div>
 
               {/* Description */}
@@ -557,7 +576,7 @@ export const CompaniesPage = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <FolderTree size={20} style={{ color: 'var(--primary)' }} />
                 <h2 style={{ fontSize: '1.25rem' }}>
-                  Chart of Accounts: <span style={{ color: 'var(--primary)' }}>{structureCompany.name}</span>
+                  Categories for <span style={{ color: 'var(--primary)' }}>{structureCompany.name}</span>
                 </h2>
               </div>
               <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
@@ -704,6 +723,26 @@ export const CompaniesPage = () => {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{cat.name}</span>
+                          {canWrite && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon"
+                            title="Rename category"
+                            onClick={async () => {
+                              const nextName = window.prompt('Category name', cat.name);
+                              if (!nextName || nextName.trim() === cat.name) return;
+                              await updateCategory({
+                                variables: {
+                                  id: cat.id,
+                                  input: { name: nextName.trim(), group: cat.group, groupLabel: cat.groupLabel },
+                                },
+                              });
+                              refetchCompanyCategories();
+                            }}
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          )}
                           <button
                             className="btn btn-ghost btn-icon"
                             onClick={() => promptDeleteCat(cat.id, cat.name)}
@@ -731,7 +770,26 @@ export const CompaniesPage = () => {
                                 color: 'var(--text-muted)',
                               }}
                             >
-                              {sub.name}
+                              {canWrite ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const raw = window.prompt('Items, separated by commas', (sub.items || []).join(', '));
+                                  if (raw === null) return;
+                                  const items = raw.split(',').map((item) => item.trim()).filter(Boolean);
+                                  await updateSubcategoryItems({
+                                    variables: { categoryId: cat.id, subcategoryName: sub.name, items },
+                                  });
+                                  refetchCompanyCategories();
+                                }}
+                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+                                title="Edit items"
+                              >
+                                {sub.name}
+                              </button>
+                              ) : (
+                                sub.name
+                              )}
                               <button
                                 type="button"
                                 onClick={() => promptDeleteSubcat(cat.id, sub.name)}
@@ -873,7 +931,7 @@ export const CompaniesPage = () => {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '1.05rem', margin: 0 }}>
-                    {editingCompany ? 'Edit Legal Entity' : 'Register Corporate Entity'}
+                    {editingCompany ? 'Edit company' : 'Add company'}
                   </h3>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Add branch, subsidiary, or holding company
@@ -955,7 +1013,7 @@ export const CompaniesPage = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm" disabled={creatingComp || updatingComp}>
-                  {creatingComp || updatingComp ? 'Saving...' : editingCompany ? 'Update Entity' : 'Register Entity'}
+                  {creatingComp || updatingComp ? 'Saving...' : editingCompany ? 'Save company' : 'Add company'}
                 </button>
               </div>
             </form>
@@ -969,7 +1027,7 @@ export const CompaniesPage = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Section Letter</h3>
+                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add a group</h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   e.g. "X — Special Projects"
                 </span>
@@ -1058,7 +1116,7 @@ export const CompaniesPage = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
             <div className="modal-header">
               <div>
-                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add Account Category</h3>
+                <h3 style={{ fontSize: '1.05rem', margin: 0 }}>Add a category</h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Section: <strong style={{ color: 'var(--text-main)' }}>{targetSectionLabel}</strong>
                 </span>

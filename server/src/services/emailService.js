@@ -8,6 +8,32 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const defaultFromEmail = process.env.RESEND_FROM_EMAIL || 'Vault <onboarding@resend.dev>';
 const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
+const inr = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+
+async function sendMail({ to, subject, html, text, templateEnv, variables, attachments }) {
+  if (!to) return { success: false, error: 'Recipient email is required.' };
+  if (!resend) {
+    console.warn(`[Resend] RESEND_API_KEY is not configured. Skipping email to ${to}.`);
+    return { success: false, error: 'RESEND_API_KEY is not configured.' };
+  }
+  const templateId = templateEnv ? process.env[templateEnv] : '';
+  const payload = {
+    from: defaultFromEmail,
+    to,
+    subject,
+    headers: { 'X-Entity-Ref-ID': `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` },
+  };
+  if (attachments?.length) payload.attachments = attachments;
+  if (templateId) {
+    payload.template = { id: templateId, variables: variables || {} };
+  } else {
+    payload.html = html;
+    payload.text = text;
+  }
+  const data = await resend.emails.send(payload);
+  return { success: true, messageId: data?.data?.id || data?.id };
+}
+
 /**
  * Standard Vault Branded HTML Email Template Wrapper
  */
@@ -150,6 +176,21 @@ const buildVaultEmailTemplate = ({
  */
 export const sendWelcomeEmail = async ({ to, name, orgName }) => {
   if (!to) return { success: false, error: 'Recipient email is required.' };
+  const welcomeVariables = {
+    NAME: name || 'there',
+    ORG_NAME: orgName || 'Workspace',
+    EMAIL: to,
+    DASHBOARD_URL: `${clientUrl}/`,
+  };
+  if (process.env.RESEND_TEMPLATE_WELCOME) {
+    return sendMail({
+      to,
+      subject: 'Welcome to Vault',
+      templateEnv: 'RESEND_TEMPLATE_WELCOME',
+      variables: welcomeVariables,
+      text: `Welcome to Vault, ${welcomeVariables.NAME}. Organization: ${welcomeVariables.ORG_NAME}. Open ${welcomeVariables.DASHBOARD_URL}`,
+    });
+  }
   if (!resend) {
     console.warn('[Resend] RESEND_API_KEY is not configured. Skipping welcome email.');
     return { success: false, error: 'RESEND_API_KEY is not configured.' };
@@ -226,11 +267,40 @@ export const sendBudgetAlertEmail = async ({
   userName,
   companyName,
   categoryName,
+  bucketName,
   limitAmount,
   currentSpend,
   percentUsed,
+  remainingAmount,
+  threshold,
+  periodLabel,
+  status,
 }) => {
   if (!to) return { success: false, error: 'Recipient email is required.' };
+  const remaining = remainingAmount ?? Math.max(0, Number(limitAmount || 0) - Number(currentSpend || 0));
+  const variables = {
+    NAME: userName || 'there',
+    COMPANY_NAME: companyName || 'Company',
+    CATEGORY_NAME: categoryName || 'Category',
+    BUCKET_NAME: bucketName || categoryName || 'Budget',
+    LIMIT_AMOUNT: inr(limitAmount),
+    CURRENT_SPEND: inr(currentSpend),
+    REMAINING_AMOUNT: inr(remaining),
+    PERCENT_USED: `${percentUsed}%`,
+    THRESHOLD: `${threshold || 80}%`,
+    PERIOD_LABEL: periodLabel || 'Current period',
+    STATUS: status || (Number(percentUsed) >= 100 ? 'Over budget' : 'Threshold reached'),
+    BUDGET_URL: `${clientUrl}/budgets`,
+  };
+  if (process.env.RESEND_TEMPLATE_BUDGET_ALERT) {
+    return sendMail({
+      to,
+      subject: `Budget alert: ${variables.CATEGORY_NAME} is at ${variables.PERCENT_USED}`,
+      templateEnv: 'RESEND_TEMPLATE_BUDGET_ALERT',
+      variables,
+      text: `${variables.BUCKET_NAME} at ${variables.COMPANY_NAME} is ${variables.STATUS}. Spent ${variables.CURRENT_SPEND} of ${variables.LIMIT_AMOUNT}.`,
+    });
+  }
   if (!resend) {
     console.warn('[Resend] RESEND_API_KEY is not configured. Skipping budget alert email.');
     return { success: false, error: 'RESEND_API_KEY is not configured.' };
@@ -470,9 +540,112 @@ Vault Financial Intelligence • Multi-Entity SaaS Platform
   }
 };
 
+export const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
+  if (!resend) {
+    console.log(`[Resend] RESEND_API_KEY is not configured. Password reset link for ${to}: ${resetUrl}`);
+    return { success: false, error: 'Email service is not configured.' };
+  }
+  const variables = {
+    NAME: name || 'there',
+    RESET_URL: resetUrl,
+    EXPIRES_IN: '1 hour',
+  };
+  if (process.env.RESEND_TEMPLATE_PASSWORD_RESET) {
+    return sendMail({
+      to,
+      subject: 'Reset your Vault password',
+      templateEnv: 'RESEND_TEMPLATE_PASSWORD_RESET',
+      variables,
+      text: `Reset your Vault password: ${resetUrl}`,
+    });
+  }
+
+  try {
+    const html = buildVaultEmailTemplate({
+      headline: 'Reset your Vault password',
+      badgeText: 'Password Reset',
+      greeting: `Hello ${name || 'there'},`,
+      bodyHtml: `<p>A password reset was requested for this account. The link is valid for one hour.</p>`,
+      ctaText: 'Reset password',
+      ctaUrl: resetUrl,
+      footerNote: 'If you did not request this, you can ignore the email.',
+    });
+
+    const data = await resend.emails.send({
+      from: defaultFromEmail,
+      to,
+      subject: 'Reset your Vault password',
+      html,
+      text: `Reset your Vault password: ${resetUrl}`,
+    });
+    return { success: true, messageId: data?.data?.id || data?.id };
+  } catch (err) {
+    console.error(`[Resend Error] Failed to send password reset to ${to}:`, err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+export const sendInviteEmail = async ({ to, inviterName, orgName, accessSummary, joinUrl }) => {
+  const variables = {
+    INVITER_NAME: inviterName || 'The owner',
+    ORG_NAME: orgName || 'Vault',
+    ACCESS_SUMMARY: accessSummary || 'Workspace',
+    JOIN_URL: joinUrl,
+    EXPIRES_IN: '7 days',
+  };
+  const html = buildVaultEmailTemplate({
+    headline: `Join ${variables.ORG_NAME} on Vault`,
+    badgeText: 'Invitation',
+    greeting: 'Hello,',
+    bodyHtml: `<p><strong>${variables.INVITER_NAME}</strong> invited you to <strong>${variables.ORG_NAME}</strong>.</p><p>Access: ${variables.ACCESS_SUMMARY}</p><p>This link expires in ${variables.EXPIRES_IN}.</p>`,
+    ctaText: 'Accept invitation',
+    ctaUrl: joinUrl,
+    footerNote: 'If you were not expecting this invite, you can ignore the email.',
+  });
+  return sendMail({
+    to,
+    subject: `You are invited to ${variables.ORG_NAME} on Vault`,
+    html,
+    text: `${variables.INVITER_NAME} invited you to ${variables.ORG_NAME}. Access: ${variables.ACCESS_SUMMARY}. Join: ${joinUrl}`,
+    templateEnv: 'RESEND_TEMPLATE_INVITE',
+    variables,
+  });
+};
+
+export const sendReportEmail = async ({ to, kind, variables, pdf }) => {
+  const templateEnv = kind === 'monthly' ? 'RESEND_TEMPLATE_MONTHLY_REPORT' : 'RESEND_TEMPLATE_WEEKLY_REPORT';
+  const subject = kind === 'monthly'
+    ? `Monthly Vault report · ${variables.PERIOD_LABEL}`
+    : `Weekly Vault report · ${variables.PERIOD_LABEL}`;
+  const html = buildVaultEmailTemplate({
+    headline: subject,
+    badgeText: kind === 'monthly' ? 'Monthly report' : 'Weekly report',
+    greeting: `Hello ${variables.NAME},`,
+    bodyHtml: `<p>The ${kind} report for <strong>${variables.ORG_NAME}</strong> covers <strong>${variables.PERIOD_LABEL}</strong>.</p>
+      <p>Income ${variables.TOTAL_INCOME}. Expenses ${variables.TOTAL_EXPENSES}. Net ${variables.NET}.</p>
+      <p>The full ledger is attached as <strong>${variables.ATTACHMENT_NAME}</strong>.</p>`,
+    ctaText: 'Open dashboard',
+    ctaUrl: variables.DASHBOARD_URL,
+  });
+  return sendMail({
+    to,
+    subject,
+    html,
+    text: `${subject}. Income ${variables.TOTAL_INCOME}. Expenses ${variables.TOTAL_EXPENSES}. Net ${variables.NET}. The PDF ${variables.ATTACHMENT_NAME} is attached.`,
+    templateEnv,
+    variables,
+    attachments: pdf
+      ? [{ filename: variables.ATTACHMENT_NAME, content: pdf.toString('base64') }]
+      : undefined,
+  });
+};
+
 export default {
   sendWelcomeEmail,
   sendBudgetAlertEmail,
   sendDisbursementAlertEmail,
   sendTestEmail,
+  sendPasswordResetEmail,
+  sendInviteEmail,
+  sendReportEmail,
 };

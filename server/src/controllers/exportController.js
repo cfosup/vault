@@ -1,6 +1,7 @@
-import { Expense, Income, Company, Category } from '../models/index.js';
+import { Expense, Income, Company, Category, User } from '../models/index.js';
 import { verifyToken } from '../services/authService.js';
 import { applyDateBounds } from '../utils/dateRange.js';
+import { accessOf, allowsModule, applyCompanyScope } from '../utils/access.js';
 
 const authenticateExportReq = (req) => {
   let token = null;
@@ -17,15 +18,22 @@ const authenticateExportReq = (req) => {
 
 export const exportExpensesCSV = async (req, res) => {
   try {
-    const user = authenticateExportReq(req);
-    if (!user || !user.orgId) {
+    const decoded = authenticateExportReq(req);
+    if (!decoded || !decoded.orgId) {
       return res.status(401).json({ error: 'Unauthorized. Valid token required.' });
+    }
+    const actor = await User.findById(decoded.userId);
+    if (!actor) return res.status(401).json({ error: 'Unauthorized. Valid token required.' });
+    const access = accessOf(actor);
+    if (!allowsModule(access, 'expenses')) {
+      return res.status(403).json({ error: 'Expenses are not included in your access.' });
     }
 
     const { companyId, startDate, endDate } = req.query;
-    const query = { orgId: user.orgId, isDeleted: { $ne: true } };
+    const query = { orgId: actor.orgId, isDeleted: { $ne: true } };
 
     if (companyId) query.companyId = companyId;
+    applyCompanyScope(query, access, companyId);
     applyDateBounds(query, startDate, endDate);
 
     const expenses = await Expense.find(query).sort({ date: -1 }).populate('companyId', 'name');
@@ -57,15 +65,22 @@ export const exportExpensesCSV = async (req, res) => {
 
 export const exportIncomeCSV = async (req, res) => {
   try {
-    const user = authenticateExportReq(req);
-    if (!user || !user.orgId) {
+    const decoded = authenticateExportReq(req);
+    if (!decoded || !decoded.orgId) {
       return res.status(401).json({ error: 'Unauthorized. Valid token required.' });
+    }
+    const actor = await User.findById(decoded.userId);
+    if (!actor) return res.status(401).json({ error: 'Unauthorized. Valid token required.' });
+    const access = accessOf(actor);
+    if (!allowsModule(access, 'income')) {
+      return res.status(403).json({ error: 'Income is not included in your access.' });
     }
 
     const { companyId, startDate, endDate } = req.query;
-    const query = { orgId: user.orgId, isDeleted: { $ne: true } };
+    const query = { orgId: actor.orgId, isDeleted: { $ne: true } };
 
     if (companyId) query.companyId = companyId;
+    applyCompanyScope(query, access, companyId);
     applyDateBounds(query, startDate, endDate);
 
     const incomes = await Income.find(query).sort({ date: -1 }).populate('companyId', 'name');
