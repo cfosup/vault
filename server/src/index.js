@@ -21,6 +21,20 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
+function normalizeOrigin(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+const allowedOrigins = new Set(
+  [
+    CLIENT_URL,
+    'https://vault.skillednation.ai',
+    ...(process.env.ALLOWED_ORIGINS || '').split(','),
+  ]
+    .map(normalizeOrigin)
+    .filter(Boolean)
+);
+
 // Rate Limiting
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -36,12 +50,13 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
+      const normalized = normalizeOrigin(origin);
       if (
-        origin === CLIENT_URL ||
-        origin.endsWith('.vercel.app') ||
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1') ||
-        origin === 'https://studio.apollographql.com'
+        allowedOrigins.has(normalized) ||
+        normalized.endsWith('.vercel.app') ||
+        normalized.includes('localhost') ||
+        normalized.includes('127.0.0.1') ||
+        normalized === 'https://studio.apollographql.com'
       ) {
         return callback(null, true);
       }
