@@ -117,8 +117,8 @@ export const ChatPanel = () => {
     },
     {
       icon: Layers,
-      label: 'Cross-Company Links',
-      prompt: 'Are there any cross-company linked expenses across our entities?',
+      label: 'People access',
+      prompt: 'How do I change what a member can open after they join?',
       color: '#06b6d4',
     },
     {
@@ -277,7 +277,7 @@ export const ChatPanel = () => {
                   Ask Vault Financial Intelligence
                 </h4>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem', maxWidth: '340px' }}>
-                  Query real-time expense ledgers, revenue inflows, corporate entity disbursements, or proactive budget caps.
+                  Ask about expenses, income, budgets, people access, repeating entries, or a closed month.
                 </p>
 
                 <div className="chat-quick-prompts-grid">

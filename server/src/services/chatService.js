@@ -578,11 +578,13 @@ export const generateDeterministicReply = (message, context, activeCompanyId = n
     query.includes('modifications')
   ) {
     return (
-      `Here are the latest modifications in ExpenseFlow:\n\n` +
-      `1. **Cross-Company Income Linking**: You can now allocate disbursements across different legal entities (e.g., Company A's expense funded by Company B's income) without overwriting the expense's Legal Entity.\n` +
-      `2. **"Recent Only" Combobox**: Renamed and streamlined the selector section to **Recently Used / Created (Recent Only)** for fast, one-click reuse of recent revenue streams.\n` +
-      `3. **Password Visibility Toggle**: An interactive Eye icon allows you to show/hide your password during login and sign-up.\n` +
-      `4. **Email Existence Verification**: Real-time email validation warns you if an email does not exist before attempting login and offers a one-click switch to account creation.`
+      `Here is how Vault works now:\n\n` +
+      `1. **People and access**: The owner invites someone into this same organization. Access can be the whole workspace, expenses only, income only, or selected companies. After they join, **Change access** in Settings can add income, expenses, another company, or delete rights.\n` +
+      `2. **Payment accounts**: An account added by a member shows for the owner too, with **Added by** and that member's name.\n` +
+      `3. **Vendors**: Choosing a category, then a subcategory, suggests vendors already used there.\n` +
+      `4. **Repeating entries**: One expense or income can repeat on the same day each month. A locked month skips that run.\n` +
+      `5. **Closed months**: The owner can lock a month so nobody can change expenses or income in it until it is unlocked.\n` +
+      `6. **Passwords**: At least 8 characters, one number, and one special character. The eye icon shows the password on sign-in, create account, and the invite join page. Forgot password asks for the email, says if no account exists, and the link asks for the new password twice.`
     );
   }
 
@@ -639,7 +641,15 @@ export const generateDeterministicReply = (message, context, activeCompanyId = n
     query.includes('password visibility') ||
     query.includes('hide password')
   ) {
-    return 'You can toggle password visibility on the login and registration pages by clicking the **Eye icon** inside the password field to see or hide your password.';
+    return 'The **eye icon** shows or hides the password on Sign In, Create Account, and the invite join page. A password needs at least 8 characters, one number, and one special character.';
+  }
+  if (
+    query.includes('forgot password') ||
+    query.includes('reset password') ||
+    query.includes('password reset') ||
+    query.includes('reset link')
+  ) {
+    return 'Choose **Forgot password?** and enter the email. If that account does not exist, Vault says so and offers **Create Account**. If it exists, a link arrives and is valid for 1 hour. The link asks only for the new password and a repeat of it, then returns to Sign In.';
   }
   if (
     query.includes('verify email') ||
@@ -651,7 +661,58 @@ export const generateDeterministicReply = (message, context, activeCompanyId = n
     query.includes('email not found') ||
     query.includes('account not found')
   ) {
-    return 'The login page automatically verifies whether an email address exists in the system as soon as you type or leave the email field. If an email is not registered, it provides immediate feedback and a direct button to switch to account creation.';
+    return 'Vault does not check the email while you are typing a sign-in. On **Forgot password?**, if no account uses that email, it says the account does not exist and offers **Create Account**.';
+  }
+  if (
+    query.includes('invite') ||
+    query.includes('teammate') ||
+    query.includes('team member') ||
+    query.includes('people access') ||
+    query.includes('change access') ||
+    query.includes('only expenses') ||
+    query.includes('only income') ||
+    query.includes('module access') ||
+    (query.includes('permission') && (query.includes('member') || query.includes('user') || query.includes('people')))
+  ) {
+    return 'The owner invites a person by email into this same organization. Access can be the whole workspace, expenses only, income only, or particular companies. Delete rights for expenses and income are separate. After they join, open Settings, then **Change access**, to add a company, income, expenses, or delete rights. The owner cannot be removed or reduced.';
+  }
+  if (
+    query.includes('payment account') ||
+    query.includes('payment method') ||
+    query.includes('added by') ||
+    query.includes('who added')
+  ) {
+    return 'Payment accounts belong to the organization. A member can add one from Settings, and it appears for the owner as well. The card and the expense **Paid from** list show **Added by** and that member\'s name. Expenses-only and income-only people see their account and payment accounts in Settings, not activity, people, or downloads.';
+  }
+  if (
+    query.includes('vendor') && (query.includes('suggest') || query.includes('remember') || query.includes('previous') || query.includes('used'))
+  ) {
+    return 'On Add expense, choose the category and then the subcategory. Vault shows chips for vendors already used in that category, and then only the vendors used with that subcategory.';
+  }
+  if (
+    query.includes('recurring') ||
+    query.includes('repeat every') ||
+    query.includes('repeating') ||
+    query.includes('every month') ||
+    (query.includes('repeat') && (query.includes('expense') || query.includes('income')))
+  ) {
+    return 'A single expense or income can be marked to repeat on the same day each month. The row you save is the first one. If that month is locked, the repeat is skipped and the next date moves forward one month. Stop a repeat from Settings.';
+  }
+  if (
+    query.includes('lock month') ||
+    query.includes('locked month') ||
+    query.includes('closed month') ||
+    query.includes('close the month') ||
+    query.includes('month lock')
+  ) {
+    return 'The owner can lock a month in Settings. Until it is unlocked, nobody, including the owner, can add, edit, delete, or restore an expense or income in that month.';
+  }
+  if (
+    query.includes('categories page') ||
+    query.includes('category page') ||
+    (query.includes('where') && query.includes('categor'))
+  ) {
+    return 'There is no separate Categories page. Choose a category on the expense, and manage categories from the company screen.';
   }
 
   // General fallbacks
@@ -765,15 +826,20 @@ Rules & Capabilities:
 5. Remaining balance = MAX(Income Amount - Total Utilized, 0).
 6. Excess spending = MAX(Total Utilized - Income Amount, 0).
 7. Utilization percentage = (Total Utilized / Income Amount) * 100 (safely 0 when income is 0).
-8. Cross-Platform / Cross-Company Linking: ExpenseFlow supports cross-company income linking. An expense recorded for Company A (Legal Entity) can be funded by income entries from Company B without modifying the expense's company.
-9. Recent Only: The "Link to Income (Class & Sub-Class)" combobox includes a pinned "Recently Used / Created (Recent Only)" section at the top for quick selection across entries.
-10. Authentication & Security: Real-time email verification and password visibility toggle (Eye icon) are enabled on the login portal.
-11. Format all monetary values with ₹ (Indian Rupee) and commas (e.g. ₹50,000).
-12. Never expose or invent financial data for other organizations or users.
-13. If asked about an entity, vendor, or user that is genuinely NOT present in any active records, state: "I cannot find data for [entity]."
-14. Offer proactive context-aware insights when excess spending or low remaining balance (< 20%) is detected.
-15. If asked about recent modifications, system updates, or new features, summarize the 4 core updates: (1) Cross-Company Income Linking without changing legal entity, (2) 'Recently Used / Created (Recent Only)' combobox section, (3) Password visibility toggle (Eye icon), and (4) Real-time email existence verification at login.
-16. Be concise, precise, and executive-ready.`;
+8. An expense for one company can be linked to income from another company. The expense company does not change.
+9. People: The owner invites someone into this same organization. Access can be the whole workspace, expenses only, income only, or selected companies. Delete rights are separate for expenses and income. After they join, Settings → Change access can add companies, income, expenses, or delete rights. The owner cannot be removed or reduced. Expenses-only and income-only people do not get Overview, Budgets, Companies, or this chat. Their Settings shows their account and payment accounts only.
+10. Payment accounts are shared in the organization. When a member adds one, it shows for the owner with "Added by" and that member's name.
+11. Add expense starts blank. After a category and subcategory are chosen, suggest vendors already used for that category and subcategory.
+12. One expense or one income can repeat monthly on the same day. A locked month skips that run. The owner locks and unlocks months in Settings; while locked, nobody can change expenses or income in that month.
+13. Passwords need at least 8 characters, one number, and one special character. The eye icon is on Sign In, Create Account, and the invite join page. Forgot password asks for the email, says when no account exists, and the reset link asks for the new password twice before returning to Sign In. Do not say that the login page checks the email while the person is typing.
+14. There is no Categories page. Categories are chosen on an expense and managed on the company screen.
+15. Budget alerts email the owner once a budget crosses its threshold, usually 80%, once per budget per period. Weekly and monthly reports go to the owner as a PDF.
+16. Format money as ₹ with Indian digit grouping, for example ₹50,000.
+17. Never expose or invent financial data for other organizations or users.
+18. If an entity, vendor, or person is not in the records above, say you cannot find data for them.
+19. Mention excess spending or a remaining balance under 20% when it is relevant.
+20. If asked what is new, describe people and access, payment accounts added by a member, vendor suggestions, repeating entries, closed months, and the password rules. Do not describe a separate Categories page or live email checking on the sign-in form.
+21. Be concise and use the words on the screen: Expenses, Income, Settings, People, Change access, Paid from, Closed months.`;
 
     const messages = [new SystemMessage(systemPrompt)];
 
