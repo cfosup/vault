@@ -59,7 +59,7 @@ async function runPhase3Test() {
       input: {
         name: 'Finance Manager',
         email: 'finance@analytics.test',
-        password: 'securePassword123',
+        password: 'securePassword123!',
         orgName: 'Apex Financials',
       },
     });

@@ -59,7 +59,7 @@ async function runPhase4Test() {
       input: {
         name: 'Chat Tester',
         email: 'chat@tester.test',
-        password: 'securePassword123',
+        password: 'securePassword123!',
         orgName: 'AI Flow Inc',
       },
     });
@@ -206,7 +206,7 @@ async function runPhase4Test() {
       input: {
         name: 'Spy User',
         email: 'spy@orgb.test',
-        password: 'password123',
+        password: 'password123!',
         orgName: 'Spy Corp',
       },
     });

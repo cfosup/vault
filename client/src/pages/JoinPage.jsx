@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { ACCEPT_INVITE } from '../graphql/mutations';
 import { GET_INVITE_PREVIEW } from '../graphql/queries';
 import { useAuthStore } from '../store/authStore';
+import { passwordProblem } from '../utils/password';
 
 export const JoinPage = () => {
   const location = useLocation();
@@ -13,6 +14,7 @@ export const JoinPage = () => {
   const { data, error } = useQuery(GET_INVITE_PREVIEW, { variables: { token }, skip: !token });
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
   const [message, setMessage] = useState('');
   const [acceptInvite, { loading }] = useMutation(ACCEPT_INVITE);
 
@@ -21,6 +23,15 @@ export const JoinPage = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage('');
+    const problem = passwordProblem(password);
+    if (problem) {
+      setMessage(problem);
+      return;
+    }
+    if (password !== repeatPassword) {
+      setMessage('Passwords do not match.');
+      return;
+    }
     try {
       const res = await acceptInvite({ variables: { input: { token, name, password } } });
       const payload = res.data.acceptInvite;
@@ -50,7 +61,11 @@ export const JoinPage = () => {
         </label>
         <label className="form-group">
           <span className="form-label">Password</span>
-          <input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required placeholder="At least 8 characters" />
+          <input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required placeholder="At least 8 characters, a number, and a special character" />
+        </label>
+        <label className="form-group">
+          <span className="form-label">Repeat password</span>
+          <input className="input" type="password" value={repeatPassword} onChange={(event) => setRepeatPassword(event.target.value)} required placeholder="Repeat password" />
         </label>
         {message && <p className="form-error">{message}</p>}
         <button className="btn btn-primary" disabled={loading || !token} type="submit">

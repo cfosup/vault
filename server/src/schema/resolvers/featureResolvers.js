@@ -7,6 +7,7 @@ import { sendInviteEmail, sendWelcomeEmail } from '../../services/emailService.j
 import { vendorNames } from '../../services/scheduleService.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
 import { assertRead, assertWrite } from '../../utils/access.js';
+import { passwordProblem } from '../../utils/passwordPolicy.js';
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -163,6 +164,10 @@ export const featureResolvers = {
       const { token, name, password } = input;
       if (!token || !name || !password) {
         throw new GraphQLError('Name, password, and invite token are required.', { extensions: { code: 'BAD_USER_INPUT' } });
+      }
+      const weakPassword = passwordProblem(password);
+      if (weakPassword) {
+        throw new GraphQLError(weakPassword, { extensions: { code: 'BAD_USER_INPUT' } });
       }
       const invite = await Invite.findOne({
         tokenHash: hashToken(token),

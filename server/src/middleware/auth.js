@@ -4,20 +4,21 @@ import { User } from '../models/User.js';
 
 export const getAuthContext = async ({ req }) => {
   const authHeader = req?.headers?.authorization || req?.headers?.Authorization || '';
+  const anonymous = { user: null, userId: null, orgId: null, role: null, req };
 
   if (!authHeader.toLowerCase().startsWith('bearer ')) {
-    return { user: null, userId: null, orgId: null, role: null };
+    return anonymous;
   }
 
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token || token === 'undefined' || token === 'null') {
-    return { user: null, userId: null, orgId: null, role: null };
+    return anonymous;
   }
 
   const decoded = verifyToken(token);
 
   if (!decoded || !decoded.userId) {
-    return { user: null, userId: null, orgId: null, role: null };
+    return anonymous;
   }
 
   let orgId = decoded.orgId;
@@ -41,6 +42,7 @@ export const getAuthContext = async ({ req }) => {
     userId: decoded.userId,
     orgId: orgId || null,
     role: role || null,
+    req,
   };
 };
 

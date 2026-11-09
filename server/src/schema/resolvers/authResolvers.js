@@ -2,10 +2,44 @@ import crypto from 'crypto';
 import { GraphQLError } from 'graphql';
 import { Organization, User, ActivityLog } from '../../models/index.js';
 import { hashPassword, comparePassword, signToken } from '../../services/authService.js';
+import { passwordProblem } from '../../utils/passwordPolicy.js';
 import { requireAuth, requireWriter } from '../../middleware/auth.js';
 import { sendWelcomeEmail, sendTestEmail, sendPasswordResetEmail } from '../../services/emailService.js';
 import { logActivity } from '../../services/activityService.js';
 import { verifyFirebaseIdToken } from '../../services/firebaseAuth.js';
+
+function normalizeOrigin(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function clientBaseUrl(req) {
+  const candidates = [];
+  const origin = normalizeOrigin(req?.headers?.origin);
+  if (origin) candidates.push(origin);
+  const referer = req?.headers?.referer || req?.headers?.referrer;
+  if (referer) {
+    try {
+      candidates.push(normalizeOrigin(new URL(referer).origin));
+    } catch {
+      // Ignore a referer that is not a URL.
+    }
+  }
+
+  const allowed = new Set(
+    [process.env.CLIENT_URL, 'https://vault.skillednation.ai', ...(process.env.ALLOWED_ORIGINS || '').split(',')]
+      .map(normalizeOrigin)
+      .filter(Boolean)
+  );
+
+  const match = candidates.find((value) => (
+    allowed.has(value) ||
+    value.endsWith('.vercel.app') ||
+    value.includes('localhost') ||
+    value.includes('127.0.0.1')
+  ));
+  if (match) return match;
+  return normalizeOrigin(process.env.CLIENT_URL) || 'http://localhost:5173';
+}
 
 const slugify = (text) => {
   return text
@@ -62,6 +96,11 @@ export const authResolvers = {
         throw new GraphQLError('Name, email, password, and organization name are all required.', {
           extensions: { code: 'BAD_USER_INPUT' },
         });
+      }
+
+      const weakPassword = passwordProblem(password);
+      if (weakPassword) {
+        throw new GraphQLError(weakPassword, { extensions: { code: 'BAD_USER_INPUT' } });
       }
 
       const normalizedEmail = email.toLowerCase().trim();
@@ -326,30 +365,45 @@ export const authResolvers = {
       };
     },
 
-    requestPasswordReset: async (_, { email }) => {
-      const generic = {
-        success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.',
-        messageId: null,
-      };
-      if (!email) return generic;
+    requestPasswordReset: async (_, { email }, context) => {
+      const normalizedEmail = String(email || '').toLowerCase().trim();
+      if (!normalizedEmail) {
+        return { success: false, message: 'Enter the email on the account.', messageId: null };
+      }
 
-      const user = await User.findOne({ email: email.toLowerCase().trim() });
-      if (!user || !user.passwordHash) return generic;
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        return {
+          success: false,
+          message: 'No account found with this email.',
+          messageId: null,
+        };
+      }
 
       const rawToken = crypto.randomBytes(32).toString('hex');
       user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
       user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
       await user.save();
 
-      const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?resetToken=${rawToken}`;
-      sendPasswordResetEmail({
+      const resetUrl = `${clientBaseUrl(context?.req)}/login?resetToken=${rawToken}`;
+      const sent = await sendPasswordResetEmail({
         to: user.email,
         name: user.name,
         resetUrl,
-      }).catch((err) => console.error('[Resend Error] Password reset email error:', err.message));
+      });
+      if (!sent.success) {
+        return {
+          success: false,
+          message: 'The account exists, but the reset email could not be sent. Try again in a minute.',
+          messageId: null,
+        };
+      }
 
-      return generic;
+      return {
+        success: true,
+        message: `A reset link was sent to ${user.email}. It is valid for 1 hour.`,
+        messageId: sent.messageId || null,
+      };
     },
 
     resetPassword: async (_, { token, password }) => {
@@ -357,6 +411,11 @@ export const authResolvers = {
         throw new GraphQLError('Reset token and a new password are required.', {
           extensions: { code: 'BAD_USER_INPUT' },
         });
+      }
+
+      const weakPassword = passwordProblem(password);
+      if (weakPassword) {
+        throw new GraphQLError(weakPassword, { extensions: { code: 'BAD_USER_INPUT' } });
       }
 
       const hashed = crypto.createHash('sha256').update(token).digest('hex');

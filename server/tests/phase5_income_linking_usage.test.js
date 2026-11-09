@@ -60,7 +60,7 @@ async function runPhase5Test() {
       input: {
         name: 'Finance Controller',
         email: 'controller@company-a.test',
-        password: 'securePassword123',
+        password: 'securePassword123!',
         orgName: 'Enterprise Org A',
       },
     });
@@ -493,7 +493,7 @@ async function runPhase5Test() {
       input: {
         name: 'Org B Admin',
         email: 'admin@org-b.test',
-        password: 'securePassword123',
+        password: 'securePassword123!',
         orgName: 'Enterprise Org B',
       },
     });

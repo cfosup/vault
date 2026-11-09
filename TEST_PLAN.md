@@ -31,9 +31,10 @@ Screen: `/login`. Operations: `register`, `login`, `firebaseOAuth`, `requestPass
 - The same email cannot register a second organization.
 - A wrong password stays on the login page and does not sign anyone in.
 - Sign out, then open `/expenses` directly. The app returns to login.
-- Forgot password with an unknown email still shows the generic success sentence.
-- Forgot password for a real account sends a mail. The link opens `/login?resetToken=...` and the new password works.
-- A Google-only account with no password does not receive a reset mail, and the screen still shows the generic sentence.
+- Forgot password with an unknown email says the account does not exist and offers Create Account.
+- Forgot password asks for the email, then sends the link. The link opens a page with password and repeat password only, then returns to sign in.
+- The new password needs 8 characters, a number, and a special character. Create Account uses the same rule.
+- A Google-only account can still receive a reset link and set a password.
 - Continue with Google signs in only after Firebase accepts the token.
 - After login, `me` shows the name, email, role, and access flags. The navbar uses that.
 

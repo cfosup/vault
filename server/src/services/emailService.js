@@ -30,8 +30,18 @@ async function sendMail({ to, subject, html, text, templateEnv, variables, attac
     payload.html = html;
     payload.text = text;
   }
-  const data = await resend.emails.send(payload);
-  return { success: true, messageId: data?.data?.id || data?.id };
+  try {
+    const data = await resend.emails.send(payload);
+    if (data?.error) {
+      const message = data.error.message || 'Email could not be sent.';
+      console.error(`[Resend Error] ${subject} to ${to}:`, message);
+      return { success: false, error: message };
+    }
+    return { success: true, messageId: data?.data?.id || data?.id || null };
+  } catch (err) {
+    console.error(`[Resend Error] ${subject} to ${to}:`, err.message);
+    return { success: false, error: err.message };
+  }
 }
 
 /**
@@ -551,13 +561,15 @@ export const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
     EXPIRES_IN: '1 hour',
   };
   if (process.env.RESEND_TEMPLATE_PASSWORD_RESET) {
-    return sendMail({
+    const templated = await sendMail({
       to,
       subject: 'Reset your Vault password',
       templateEnv: 'RESEND_TEMPLATE_PASSWORD_RESET',
       variables,
       text: `Reset your Vault password: ${resetUrl}`,
     });
+    if (templated.success) return templated;
+    console.error('[Resend] Password reset template failed. Sending the HTML email instead:', templated.error);
   }
 
   try {
@@ -578,7 +590,12 @@ export const sendPasswordResetEmail = async ({ to, name, resetUrl }) => {
       html,
       text: `Reset your Vault password: ${resetUrl}`,
     });
-    return { success: true, messageId: data?.data?.id || data?.id };
+    if (data?.error) {
+      const message = data.error.message || 'Email could not be sent.';
+      console.error(`[Resend Error] Failed to send password reset to ${to}:`, message);
+      return { success: false, error: message };
+    }
+    return { success: true, messageId: data?.data?.id || data?.id || null };
   } catch (err) {
     console.error(`[Resend Error] Failed to send password reset to ${to}:`, err.message);
     return { success: false, error: err.message };

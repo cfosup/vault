@@ -153,7 +153,7 @@ These need a super-admin token. An owner or admin token is rejected.
 | 1 | `register` | `RegisterInput` (`name`, `email`, `password`, `orgName`) | Public | New organization and an owner. Does not join an existing organization |
 | 2 | `login` | `email`, `password` | Public | JWT, user, and organization |
 | 3 | `firebaseOAuth` | `FirebaseOAuthInput` (`idToken`, `uid`, `email`, `name`, `avatarUrl`, `orgName`) | Public | Server verifies the Firebase token, then signs in or creates the user |
-| 4 | `requestPasswordReset` | `email` | Public | Sends a reset mail when the account has a password. Always returns the same success sentence |
+| 4 | `requestPasswordReset` | `email` | Public | Sends a reset mail when the account exists. Returns a clear message when it does not |
 | 5 | `resetPassword` | `token`, `password` | Public | Sets the password when the token is valid and under one hour old |
 | 6 | `sendTestEmail` | `email` | Signed in | Sends a test message through Resend |
 

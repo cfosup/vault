@@ -63,7 +63,7 @@ async function runPhase2Test() {
       input: {
         name: 'John Founder',
         email: 'john@acme.com',
-        password: 'securePassword123',
+        password: 'securePassword123!',
         orgName: 'Acme Enterprise',
       },
     });
@@ -84,7 +84,7 @@ async function runPhase2Test() {
       input: {
         name: 'John Duplicate',
         email: 'john@acme.com',
-        password: 'anotherPassword',
+        password: 'anotherPassword1!',
         orgName: 'Acme Two',
       },
     });
@@ -100,7 +100,7 @@ async function runPhase2Test() {
       }
     `, {
       email: 'john@acme.com',
-      password: 'securePassword123',
+      password: 'securePassword123!',
     });
     assert(!!loginRes.data?.login?.token, 'Login returned valid JWT token');
 
@@ -397,7 +397,7 @@ async function runPhase2Test() {
       input: {
         name: 'Jane Competitor',
         email: 'jane@betacorp.test',
-        password: 'securePasswordB',
+        password: 'securePasswordB1!',
         orgName: 'Beta Corp',
       },
     });

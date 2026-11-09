@@ -4,6 +4,7 @@ import { useMutation } from '@apollo/client/react';
 import { LOGIN, REGISTER, FIREBASE_OAUTH, REQUEST_PASSWORD_RESET, RESET_PASSWORD } from '../graphql/mutations';
 import { signInWithGoogle } from '../config/firebase';
 import { useAuthStore } from '../store/authStore';
+import { passwordProblem } from '../utils/password';
 import {
   ArrowRight,
   Lock,
@@ -34,8 +35,15 @@ export const LoginPage = () => {
   const loginStore = useAuthStore((state) => state.login);
 
   const resetToken = searchParams.get('resetToken') || '';
+  const passwordUpdated = searchParams.get('updated') === '1';
+  const [showForgot, setShowForgot] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showRepeat, setShowRepeat] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN);
   const [registerMutation, { loading: registerLoading }] = useMutation(REGISTER);
   const [firebaseOAuthMutation, { loading: oauthLoading }] = useMutation(FIREBASE_OAUTH);
@@ -48,33 +56,53 @@ export const LoginPage = () => {
 
   const handleVerifyEmail = () => {};
 
-  const handleRequestReset = async () => {
+  const handleRequestReset = async (event) => {
+    event?.preventDefault();
     setErrorMsg('');
     setResetMessage('');
-    if (!email) {
+    if (!isValidEmail(email)) {
       setErrorMsg('Enter the email on the account.');
       return;
     }
+    setSendingReset(true);
     try {
-      const res = await requestReset({ variables: { email } });
-      setResetMessage(res.data?.requestPasswordReset?.message || 'If an account exists, a reset link has been sent.');
+      const res = await requestReset({ variables: { email: email.trim() } });
+      const result = res.data?.requestPasswordReset;
+      if (!result?.success) {
+        setErrorMsg(result?.message || 'No account found with this email.');
+        return;
+      }
+      setResetMessage(result.message || 'A reset link was sent. It is valid for 1 hour.');
     } catch (err) {
       setErrorMsg(err.message || 'Could not send the reset email.');
+    } finally {
+      setSendingReset(false);
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (event) => {
+    event?.preventDefault();
     setErrorMsg('');
     setResetMessage('');
-    if (!newPassword || newPassword.length < 8) {
-      setErrorMsg('Use a password of at least 8 characters.');
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      setErrorMsg(problem);
       return;
     }
+    if (newPassword !== repeatPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+    setSavingPassword(true);
     try {
-      const res = await resetPasswordMutation({ variables: { token: resetToken, password: newPassword } });
-      setResetMessage(res.data?.resetPassword?.message || 'Password updated.');
+      await resetPasswordMutation({ variables: { token: resetToken, password: newPassword } });
+      setNewPassword('');
+      setRepeatPassword('');
+      navigate('/login?updated=1', { replace: true });
     } catch (err) {
       setErrorMsg(err.message || 'This reset link is invalid or has expired.');
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -91,6 +119,15 @@ export const LoginPage = () => {
       if (isRegister) {
         if (!name || !orgName || !email || !password) {
           setErrorMsg('Please fill in all fields.');
+          return;
+        }
+        const problem = passwordProblem(password);
+        if (problem) {
+          setErrorMsg(problem);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setErrorMsg('Passwords do not match.');
           return;
         }
         const res = await registerMutation({
@@ -195,6 +232,41 @@ export const LoginPage = () => {
 
         {/* Auth Card */}
         <div className="card" style={{ padding: '1.35rem 1.4rem 1.2rem' }}>
+          {passwordUpdated && !resetToken && !errorMsg && (
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--success-bg, rgba(16, 185, 129, 0.12))',
+                border: '1px solid var(--success, #10b981)',
+                color: 'var(--success, #10b981)',
+                fontSize: '0.825rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+              }}
+            >
+              <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+              <span>Password updated. Sign in with your new password.</span>
+            </div>
+          )}
+
+          {(resetToken || showForgot) && (
+            <div style={{ marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.35rem' }}>
+                {resetToken ? 'Choose a new password' : 'Reset password'}
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0 }}>
+                {resetToken
+                  ? 'Enter the new password twice. You will return to sign in after it is saved.'
+                  : 'Enter the email on the account. We will send a reset link if it exists.'}
+              </p>
+            </div>
+          )}
+
+          {!resetToken && !showForgot && (
+          <>
           {/* Segmented Tab Switcher */}
           <div
             style={{
@@ -324,6 +396,8 @@ export const LoginPage = () => {
             <span style={{ padding: '0 0.75rem' }}>or continue with email</span>
             <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
           </div>
+          </>
+          )}
 
           {/* Session Expired Banner */}
           {isExpired && !errorMsg && (
@@ -372,6 +446,7 @@ export const LoginPage = () => {
                   type="button"
                   onClick={() => {
                     setIsRegister(true);
+                    setShowForgot(false);
                     setErrorMsg('');
                     setEmailStatus(null);
                   }}
@@ -395,8 +470,12 @@ export const LoginPage = () => {
           )}
 
           {/* Form */}
-          <form className="auth-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-            {isRegister && (
+          <form
+            className="auth-form"
+            onSubmit={resetToken ? handleResetPassword : showForgot ? handleRequestReset : handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}
+          >
+            {isRegister && !resetToken && !showForgot && (
               <>
                 <div className="form-group">
                   <label className="form-label">Full Name</label>
@@ -430,6 +509,7 @@ export const LoginPage = () => {
               </>
             )}
 
+            {!resetToken && (
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label className="form-label">Email Address</label>
@@ -514,7 +594,9 @@ export const LoginPage = () => {
                 </div>
               )}
             </div>
+            )}
 
+            {!resetToken && !showForgot && (
             <div className="form-group">
               <label className="form-label">Password</label>
               <div className="input-with-icon" style={{ position: 'relative' }}>
@@ -555,10 +637,42 @@ export const LoginPage = () => {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {isRegister && (
+                <p className="field-hint" style={{ marginTop: '0.35rem' }}>
+                  At least 8 characters, one number, and one special character.
+                </p>
+              )}
             </div>
+            )}
 
-            {!isRegister && !resetToken && (
-              <button type="button" className="btn btn-ghost" onClick={handleRequestReset} style={{ alignSelf: 'flex-start', padding: '0.15rem 0' }}>
+            {isRegister && !resetToken && !showForgot && (
+              <div className="form-group">
+                <label className="form-label">Repeat password</label>
+                <div className="input-with-icon">
+                  <span className="input-icon"><Lock size={15} /></span>
+                  <input
+                    type={showRepeat ? 'text' : 'password'}
+                    className="input"
+                    placeholder="Repeat password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {!isRegister && !resetToken && !showForgot && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowForgot(true);
+                  setErrorMsg('');
+                  setResetMessage('');
+                }}
+                style={{ alignSelf: 'flex-start', padding: '0.15rem 0' }}
+              >
                 Forgot password?
               </button>
             )}
@@ -566,21 +680,75 @@ export const LoginPage = () => {
               <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>{resetMessage}</p>
             )}
             {resetToken && (
-              <div className="form-group">
-                <label className="form-label">New password</label>
-                <input
-                  type="password"
-                  className="input"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                />
-                <button type="button" className="btn btn-primary" onClick={handleResetPassword} style={{ width: '100%', marginTop: '0.5rem' }}>
-                  Update password
-                </button>
-              </div>
+              <>
+                <div className="form-group">
+                  <label className="form-label">New password</label>
+                  <div className="input-with-icon" style={{ position: 'relative' }}>
+                    <span className="input-icon"><Lock size={15} /></span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="input"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="New password"
+                      required
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.65rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                      }}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className="field-hint" style={{ marginTop: '0.35rem' }}>
+                    At least 8 characters, one number, and one special character.
+                  </p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Repeat password</label>
+                  <div className="input-with-icon">
+                    <span className="input-icon"><Lock size={15} /></span>
+                    <input
+                      type={showRepeat ? 'text' : 'password'}
+                      className="input"
+                      value={repeatPassword}
+                      onChange={(e) => setRepeatPassword(e.target.value)}
+                      placeholder="Repeat password"
+                      required
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
+            {showForgot && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowForgot(false);
+                  setErrorMsg('');
+                  setResetMessage('');
+                }}
+                style={{ alignSelf: 'flex-start', padding: '0.15rem 0' }}
+              >
+                Back to sign in
+              </button>
+            )}
+
+            {(!resetToken && !showForgot) && (
             <button
               type="submit"
               className="btn btn-primary"
@@ -604,6 +772,29 @@ export const LoginPage = () => {
                 </>
               )}
             </button>
+            )}
+
+            {showForgot && (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={sendingReset}
+                style={{ width: '100%', padding: '0.65rem', fontSize: '0.875rem', marginTop: '0.35rem' }}
+              >
+                {sendingReset ? 'Sending...' : 'Send reset link'}
+              </button>
+            )}
+
+            {resetToken && (
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={savingPassword}
+                style={{ width: '100%', padding: '0.65rem', fontSize: '0.875rem', marginTop: '0.35rem' }}
+              >
+                {savingPassword ? 'Saving...' : 'Save password'}
+              </button>
+            )}
           </form>
 
         </div>
