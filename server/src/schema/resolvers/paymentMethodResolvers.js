@@ -1,6 +1,17 @@
 import { GraphQLError } from 'graphql';
 import { PaymentMethod } from '../../models/index.js';
-import { requireAuth, requireWriter } from '../../middleware/auth.js';
+import { requireAuth } from '../../middleware/auth.js';
+import { accessOf, loadActor } from '../../utils/access.js';
+
+async function requirePaymentWriter(context) {
+  const access = accessOf(await loadActor(context));
+  if (!access.canWrite) {
+    throw new GraphQLError('You do not have permission to change payment accounts.', {
+      extensions: { code: 'FORBIDDEN', http: { status: 403 } },
+    });
+  }
+  return access;
+}
 
 export const paymentMethodResolvers = {
   Query: {
@@ -23,7 +34,7 @@ export const paymentMethodResolvers = {
 
   Mutation: {
     createPaymentMethod: async (_, { input }, context) => {
-      requireWriter(context);
+      await requirePaymentWriter(context);
       const { name, type, accountNumber, isActive } = input;
 
       if (!name || !name.trim()) {
@@ -42,7 +53,7 @@ export const paymentMethodResolvers = {
     },
 
     updatePaymentMethod: async (_, { id, input }, context) => {
-      requireWriter(context);
+      await requirePaymentWriter(context);
       const updateData = {};
       if (input.name !== undefined) updateData.name = input.name.trim();
       if (input.type !== undefined) updateData.type = input.type;
@@ -65,7 +76,7 @@ export const paymentMethodResolvers = {
     },
 
     deletePaymentMethod: async (_, { id }, context) => {
-      requireWriter(context);
+      await requirePaymentWriter(context);
       const result = await PaymentMethod.findOneAndDelete({ _id: id, orgId: context.orgId });
       return !!result;
     },

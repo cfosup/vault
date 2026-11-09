@@ -38,12 +38,17 @@ export const SettingsPage = () => {
 
   const { data, loading, refetch } = useQuery(GET_PAYMENT_METHODS);
   const { data: meData } = useQuery(GET_ME);
-  const { data: activityData } = useQuery(GET_MY_ACTIVITY, { variables: { limit: 20 } });
+  const account = meData?.me || user;
+  const moduleOnly = account?.accessScope === 'modules';
+  const canManagePayments = canWrite || moduleOnly;
+  const { data: activityData } = useQuery(GET_MY_ACTIVITY, {
+    variables: { limit: 20 },
+    skip: moduleOnly,
+  });
   const [createPaymentMethod, { loading: creating }] = useMutation(CREATE_PAYMENT_METHOD);
   const [updatePaymentMethod] = useMutation(UPDATE_PAYMENT_METHOD);
   const [deletePaymentMethod] = useMutation(DELETE_PAYMENT_METHOD);
   const [loadPaymentMethod] = useLazyQuery(GET_PAYMENT_METHOD, { fetchPolicy: 'network-only' });
-  const account = meData?.me || user;
   const activityLogs = activityData?.myActivityLogs || [];
 
   const paymentMethods = data?.paymentMethods || [];
@@ -123,14 +128,14 @@ export const SettingsPage = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <h1 style={{ fontSize: '1.65rem' }}>Settings</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            People, company details, payment accounts, and exports.
+            {moduleOnly ? 'Your account and the payment accounts you can use.' : 'People, company details, payment accounts, and exports.'}
           </p>
         </div>
       </div>
 
       {/* Profiles Grid */}
       <div className="grid-2">
-        {/* Organization Info */}
+        {!moduleOnly && (
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <div
@@ -172,6 +177,7 @@ export const SettingsPage = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* User Account */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -236,7 +242,7 @@ export const SettingsPage = () => {
               </span>
             </div>
           </div>
-          {canWrite && (
+          {canManagePayments && (
             <button className="btn btn-primary btn-sm" onClick={() => { setEditingPaymentId(null); setName(''); setAccountNumber(''); setType('bank'); setShowModal(true); }}>
               <Plus size={14} /> Add account
             </button>
@@ -261,7 +267,7 @@ export const SettingsPage = () => {
                       <span className="badge badge-neutral" style={{ textTransform: 'uppercase', fontSize: '0.65rem', marginTop: '0.2rem' }}>{pm.type}</span>
                     </div>
                   </div>
-                  {canWrite && (
+                  {canManagePayments && (
                     <div style={{ display: 'flex', gap: '0.35rem' }}>
                       <button
                         className="btn btn-secondary btn-icon"
@@ -296,9 +302,9 @@ export const SettingsPage = () => {
         )}
       </div>
 
-      <OrgAccessPanel />
+      {!moduleOnly && <OrgAccessPanel />}
 
-      {/* Accounting & Financial Preferences */}
+      {!moduleOnly && (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div
@@ -379,8 +385,9 @@ export const SettingsPage = () => {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Accounting & Audit Data Export Hub */}
+      {!moduleOnly && (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div
@@ -500,7 +507,9 @@ export const SettingsPage = () => {
           </div>
         </div>
       </div>
+      )}
 
+      {!moduleOnly && (
       <div className="card activity-log">
         <div>
           <h3>Activity</h3>
@@ -519,6 +528,7 @@ export const SettingsPage = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
