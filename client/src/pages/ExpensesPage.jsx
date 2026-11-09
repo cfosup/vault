@@ -25,6 +25,7 @@ import { CREATE_EXPENSES, UPDATE_EXPENSE, DELETE_EXPENSE, RESTORE_EXPENSE, CREAT
 import { useAuthStore } from '../store/authStore';
 import { CategorySelect } from '../components/common/CategorySelect';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { CountUp, RollingAmount } from '../components/common/CountUp';
 import { client } from '../graphql/client';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { CompanyIncomeSelect } from '../components/common/CompanyIncomeSelect';
@@ -940,9 +941,11 @@ export const ExpensesPage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Spent on this page
             </span>
-            <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--danger)' }}>
-              ₹{totalFilteredAmount.toLocaleString('en-IN')}
-            </span>
+            {loading ? (
+              <RollingAmount />
+            ) : (
+              <CountUp value={totalFilteredAmount} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--danger)' }} />
+            )}
           </div>
         </div>
 
@@ -965,9 +968,11 @@ export const ExpensesPage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Average amount
             </span>
-            <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }}>
-              ₹{avgTicketSize.toLocaleString('en-IN')}
-            </span>
+            {loading ? (
+              <RollingAmount />
+            ) : (
+              <CountUp value={avgTicketSize} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }} />
+            )}
           </div>
         </div>
 
@@ -1803,7 +1808,15 @@ export const ExpensesPage = () => {
             </tr>
           </thead>
           <tbody>
-            {expenses.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 4 }, (_, index) => (
+                <tr key={`loading-${index}`}>
+                  <td colSpan="7"><span className="field-hint">Loading expenses</span></td>
+                  <td><RollingAmount prefix="-₹" /></td>
+                  <td />
+                </tr>
+              ))
+            ) : expenses.length === 0 ? (
               <tr>
                 <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
                   <div className="empty-state">
@@ -1934,9 +1947,13 @@ export const ExpensesPage = () => {
                       )}
                     </td>
                     <td>
-                      <span className="mono" style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.95rem' }}>
-                        -₹{Number(exp.amount).toLocaleString('en-IN')}
-                      </span>
+                      <CountUp
+                        value={exp.amount}
+                        prefix="-₹"
+                        duration={650}
+                        className="mono"
+                        style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.95rem' }}
+                      />
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {canWrite && showDeleted && (

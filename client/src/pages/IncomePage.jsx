@@ -22,6 +22,7 @@ import { CREATE_INCOMES, UPDATE_INCOME, DELETE_INCOME, RESTORE_INCOME } from '..
 import { canWriteModule, canDeleteKind } from '../utils/access';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { CountUp, RollingAmount } from '../components/common/CountUp';
 import { formatDisplayDate } from '../utils/dateUtils';
 
 export const IncomePage = () => {
@@ -305,9 +306,11 @@ export const IncomePage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Received on this page
             </span>
-            <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--success)' }}>
-              ₹{totalInflow.toLocaleString('en-IN')}
-            </span>
+            {loading ? (
+              <RollingAmount />
+            ) : (
+              <CountUp value={totalInflow} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--success)' }} />
+            )}
           </div>
         </div>
 
@@ -330,9 +333,11 @@ export const IncomePage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Average amount
             </span>
-            <span className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }}>
-              ₹{avgInflow.toLocaleString('en-IN')}
-            </span>
+            {loading ? (
+              <RollingAmount />
+            ) : (
+              <CountUp value={avgInflow} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }} />
+            )}
           </div>
         </div>
 
@@ -652,7 +657,15 @@ export const IncomePage = () => {
             </tr>
           </thead>
           <tbody>
-            {incomes.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 4 }, (_, index) => (
+                <tr key={`loading-${index}`}>
+                  <td colSpan="4"><span className="field-hint">Loading income</span></td>
+                  <td><RollingAmount prefix="+₹" /></td>
+                  <td />
+                </tr>
+              ))
+            ) : incomes.length === 0 ? (
               <tr>
                 <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
                   <div className="empty-state">
@@ -684,9 +697,13 @@ export const IncomePage = () => {
                       {inc.notes || '—'}
                     </td>
                     <td>
-                      <span className="mono" style={{ fontWeight: 800, color: 'var(--success)', fontSize: '0.95rem' }}>
-                        +₹{Number(inc.amount).toLocaleString('en-IN')}
-                      </span>
+                      <CountUp
+                        value={inc.amount}
+                        prefix="+₹"
+                        duration={650}
+                        className="mono"
+                        style={{ fontWeight: 800, color: 'var(--success)', fontSize: '0.95rem' }}
+                      />
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button

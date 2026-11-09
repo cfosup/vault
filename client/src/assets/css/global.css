@@ -2023,3 +2023,32 @@ p { color: var(--text-muted); font-size: 0.875rem; }
   line-height: 1.4;
   color: var(--text-muted);
 }
+
+.rolling-amount {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 1.15em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.digit-reel {
+  display: inline-block;
+  height: 1.15em;
+  width: 0.68em;
+  overflow: hidden;
+  line-height: 1.15em;
+}
+
+.digit-reel > span {
+  display: block;
+  white-space: pre;
+  animation: digitScroll 0.7s linear infinite;
+}
+
+@keyframes digitScroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-11.5em); }
+}
