@@ -60,6 +60,7 @@ export const expenseResolvers = {
       return new Date().toISOString();
     },
     income: async (parent) => {
+      if (parent.$locals?.linkedIncome !== undefined) return parent.$locals.linkedIncome;
       if (!parent.incomeId) return null;
       return Income.findOne({ _id: parent.incomeId, isDeleted: { $ne: true } });
     },
@@ -85,6 +86,7 @@ export const expenseResolvers = {
       return [];
     },
     incomes: async (parent) => {
+      if (parent.$locals?.linkedIncomes !== undefined) return parent.$locals.linkedIncomes;
       const ids = (parent.incomeIds && parent.incomeIds.length > 0)
         ? parent.incomeIds
         : (parent.incomeId ? [parent.incomeId] : []);
@@ -153,6 +155,25 @@ export const expenseResolvers = {
         Expense.find(query).sort(sortCriteria).skip(skip).limit(safeLimit),
         Expense.countDocuments(query),
       ]);
+
+      const incomeIds = new Set();
+      for (const expense of expenses) {
+        if (expense.incomeId) incomeIds.add(String(expense.incomeId));
+        for (const id of expense.incomeIds || []) incomeIds.add(String(id));
+      }
+      if (incomeIds.size) {
+        const linked = await Income.find({
+          _id: { $in: [...incomeIds] },
+          isDeleted: { $ne: true },
+        });
+        const byId = new Map(linked.map((row) => [String(row._id), row]));
+        for (const expense of expenses) {
+          const ids = (expense.incomeIds?.length ? expense.incomeIds : expense.incomeId ? [expense.incomeId] : [])
+            .map((id) => String(id));
+          expense.$locals.linkedIncome = expense.incomeId ? byId.get(String(expense.incomeId)) || null : null;
+          expense.$locals.linkedIncomes = ids.map((id) => byId.get(id)).filter(Boolean);
+        }
+      }
 
       return {
         expenses,

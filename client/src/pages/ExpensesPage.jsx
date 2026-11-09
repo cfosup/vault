@@ -122,11 +122,14 @@ export const ExpensesPage = () => {
   const { data: compData } = useQuery(GET_COMPANIES);
   const { data: catData, refetch: refetchCategories } = useQuery(GET_CATEGORIES, {
     variables: { companyId: activeCompanyId || null },
+    skip: !showForm,
+    fetchPolicy: 'cache-first',
   });
-  const { paymentMethods } = usePaymentMethods();
+  const { paymentMethods } = usePaymentMethods({ skip: !showForm });
   const { data: allIncomesData, refetch: refetchIncomes } = useQuery(GET_INCOMES, {
-    variables: { limit: 500 },
-    fetchPolicy: 'cache-and-network',
+    variables: { limit: 100 },
+    skip: !showForm,
+    fetchPolicy: 'cache-first',
   });
 
   const companies = compData?.companies || [];
@@ -146,6 +149,7 @@ export const ExpensesPage = () => {
       limit: 15,
     },
     fetchPolicy: 'cache-and-network',
+    nextFetchPolicy: 'cache-first',
   });
 
   const [createExpenses, { loading: saving }] = useMutation(CREATE_EXPENSES);
@@ -156,6 +160,7 @@ export const ExpensesPage = () => {
   const [addSubcategory] = useMutation(ADD_SUBCATEGORY);
 
   const expenses = data?.expenses?.expenses || [];
+  const listLoading = loading && !data;
   const totalPages = data?.expenses?.totalPages || 1;
   const totalCount = data?.expenses?.totalCount || 0;
 
@@ -941,10 +946,10 @@ export const ExpensesPage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Spent on this page
             </span>
-            {loading ? (
+            {listLoading ? (
               <RollingAmount />
             ) : (
-              <CountUp value={totalFilteredAmount} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--danger)' }} />
+              <CountUp value={totalFilteredAmount} duration={450} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--danger)' }} />
             )}
           </div>
         </div>
@@ -968,10 +973,10 @@ export const ExpensesPage = () => {
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
               Average amount
             </span>
-            {loading ? (
+            {listLoading ? (
               <RollingAmount />
             ) : (
-              <CountUp value={avgTicketSize} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }} />
+              <CountUp value={avgTicketSize} duration={450} className="mono" style={{ fontSize: '1.45rem', fontWeight: 800 }} />
             )}
           </div>
         </div>
@@ -1808,14 +1813,12 @@ export const ExpensesPage = () => {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
-              Array.from({ length: 4 }, (_, index) => (
-                <tr key={`loading-${index}`}>
-                  <td colSpan="7"><span className="field-hint">Loading expenses</span></td>
-                  <td><RollingAmount prefix="-₹" /></td>
-                  <td />
-                </tr>
-              ))
+            {listLoading ? (
+              <tr>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                  Loading expenses
+                </td>
+              </tr>
             ) : expenses.length === 0 ? (
               <tr>
                 <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
@@ -1947,13 +1950,9 @@ export const ExpensesPage = () => {
                       )}
                     </td>
                     <td>
-                      <CountUp
-                        value={exp.amount}
-                        prefix="-₹"
-                        duration={650}
-                        className="mono"
-                        style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.95rem' }}
-                      />
+                      <span className="mono" style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.95rem' }}>
+                        -₹{Number(exp.amount).toLocaleString('en-IN')}
+                      </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {canWrite && showDeleted && (

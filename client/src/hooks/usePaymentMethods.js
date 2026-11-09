@@ -10,14 +10,15 @@ function missingAddedBy(error) {
   return parts.filter(Boolean).join(' ').includes('createdByName');
 }
 
-export function usePaymentMethods() {
+export function usePaymentMethods({ skip = false } = {}) {
   const full = useQuery(GET_PAYMENT_METHODS, {
+    skip,
     errorPolicy: 'all',
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
   const basic = useQuery(GET_PAYMENT_METHODS_BASIC, {
-    skip: !missingAddedBy(full.error),
-    fetchPolicy: 'cache-and-network',
+    skip: skip || !missingAddedBy(full.error),
+    fetchPolicy: 'cache-first',
   });
 
   const refetch = async () => {

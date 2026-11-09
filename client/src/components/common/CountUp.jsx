@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 export function CountUp({
   value = 0,
   prefix = '₹',
-  duration = 800,
+  duration = 450,
   className,
   style,
 }) {
