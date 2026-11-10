@@ -242,6 +242,7 @@ export const GET_EXPENSES = gql`
         createdAt
       }
       totalCount
+      totalAmount
       page
       totalPages
     }
@@ -261,6 +262,7 @@ export const GET_INCOMES = gql`
         createdAt
       }
       totalCount
+      totalAmount
       page
       totalPages
     }

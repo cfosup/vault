@@ -38,6 +38,7 @@ type Expense {
 type ExpensePage {
   expenses: [Expense!]!
   totalCount: Int!
+  totalAmount: Float!
   page: Int!
   totalPages: Int!
 }

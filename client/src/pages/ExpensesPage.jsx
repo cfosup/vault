@@ -30,6 +30,8 @@ import { client } from '../graphql/client';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { CompanyIncomeSelect } from '../components/common/CompanyIncomeSelect';
 import { getCachedIncomeSelection, setCachedIncomeSelection } from '../utils/incomeCache';
+import { PeriodFilter } from '../components/common/PeriodFilter';
+import { periodLabel, periodRange } from '../utils/period';
 
 const CORE_SECTIONS = [
   { group: 'C', groupLabel: 'C — Compliance' },
@@ -50,6 +52,9 @@ export const ExpensesPage = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState('date_desc');
+  const [datePreset, setDatePreset] = useState('this_month');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
 
   // Cache of categories per company ID { [companyId]: [Category] }
@@ -137,6 +142,11 @@ export const ExpensesPage = () => {
   const defaultCategories = catData?.categories || [];
   const allIncomes = allIncomesData?.incomes?.incomes || [];
 
+  const { startDate, endDate } = useMemo(
+    () => periodRange(datePreset, customStart, customEnd),
+    [datePreset, customStart, customEnd]
+  );
+
   const { data, loading, refetch } = useQuery(GET_EXPENSES, {
     variables: {
       filter: {
@@ -144,6 +154,8 @@ export const ExpensesPage = () => {
         search: search || null,
         sortBy: sortBy || 'date_desc',
         includeDeleted: showDeleted,
+        startDate: startDate || null,
+        endDate: endDate || null,
       },
       page,
       limit: 15,
@@ -276,14 +288,12 @@ export const ExpensesPage = () => {
   };
 
   // Metrics
-  const totalFilteredAmount = useMemo(() => {
-    return expenses.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-  }, [expenses]);
+  const totalFilteredAmount = data?.expenses?.totalAmount || 0;
 
   const avgTicketSize = useMemo(() => {
-    if (!expenses.length) return 0;
-    return Math.round(totalFilteredAmount / expenses.length);
-  }, [expenses, totalFilteredAmount]);
+    if (!totalCount) return 0;
+    return Math.round(totalFilteredAmount / totalCount);
+  }, [totalCount, totalFilteredAmount]);
 
   // Multi-Income Allocation Split Helpers for Quick Entry
   const quickExpAmount = useMemo(() => {
@@ -944,7 +954,7 @@ export const ExpensesPage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Spent on this page
+              Spent {periodLabel(datePreset)}
             </span>
             {listLoading ? (
               <RollingAmount />
@@ -1753,6 +1763,17 @@ export const ExpensesPage = () => {
           </button>
         </div>
       )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <PeriodFilter
+          preset={datePreset}
+          onPreset={(value) => { setDatePreset(value); setPage(1); }}
+          customStart={customStart}
+          customEnd={customEnd}
+          onCustomStart={(value) => { setCustomStart(value); setPage(1); }}
+          onCustomEnd={(value) => { setCustomEnd(value); setPage(1); }}
+        />
+      </div>
 
       {/* Filters & Search Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>

@@ -35,6 +35,11 @@ export const rangeEnd = (value) => {
   return parsed;
 };
 
+export async function sumAmount(Model, query) {
+  const rows = await Model.find(query).select('amount').lean();
+  return rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+}
+
 export const applyDateBounds = (target, startDate, endDate, field = 'date') => {
   const start = rangeStart(startDate);
   const end = rangeEnd(endDate);

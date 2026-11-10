@@ -51,7 +51,7 @@ This file lists every operation in the schema. There are **39 queries** and **42
 
 | # | Query | Returns | Who |
 |---|---|---|---|
-| 10 | `expenses(filter: ExpenseFilter, page: Int, limit: Int)` | `ExpensePage` (`expenses`, `totalCount`, `page`, `totalPages`) | Can read expenses |
+| 10 | `expenses(filter: ExpenseFilter, page: Int, limit: Int)` | `ExpensePage` (`expenses`, `totalCount`, `totalAmount`, `page`, `totalPages`) | Can read expenses |
 | 11 | `expense(id: ID!)` | `Expense` | Can read expenses |
 | 12 | `expensesByIncome(incomeId: ID!)` | `[Expense]` | Can read expenses |
 
@@ -67,7 +67,7 @@ This file lists every operation in the schema. There are **39 queries** and **42
 
 | # | Query | Returns | Who |
 |---|---|---|---|
-| 13 | `incomes(filter: IncomeFilter, page: Int, limit: Int)` | `IncomePage` | Can read income |
+| 13 | `incomes(filter: IncomeFilter, page: Int, limit: Int)` | `IncomePage` (`incomes`, `totalCount`, `totalAmount`, `page`, `totalPages`) | Can read income |
 | 14 | `income(id: ID!)` | `Income` | Can read income |
 
 `IncomeFilter`: `companyId`, `startDate`, `endDate`, `search`, `includeDeleted`.

@@ -2,7 +2,7 @@ import { GraphQLError } from 'graphql';
 import { Income, RecurringSchedule } from '../../models/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { logActivity } from '../../services/activityService.js';
-import { applyDateBounds } from '../../utils/dateRange.js';
+import { applyDateBounds, sumAmount } from '../../utils/dateRange.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
 import { assertRead, assertWrite, assertDelete, assertMonthOpen, applyCompanyScope, nextMonthOnDay } from '../../utils/access.js';
 
@@ -70,14 +70,16 @@ export const incomeResolvers = {
       const safeLimit = Math.min(100, Math.max(1, limit));
       const skip = (safePage - 1) * safeLimit;
 
-      const [incomes, totalCount] = await Promise.all([
+      const [incomes, totalCount, totalAmount] = await Promise.all([
         Income.find(query).sort({ date: -1, createdAt: -1 }).skip(skip).limit(safeLimit),
         Income.countDocuments(query),
+        sumAmount(Income, query),
       ]);
 
       return {
         incomes,
         totalCount,
+        totalAmount,
         page: safePage,
         totalPages: Math.ceil(totalCount / safeLimit) || 1,
       };

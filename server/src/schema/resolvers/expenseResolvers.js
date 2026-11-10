@@ -3,7 +3,7 @@ import { Expense, Income, BudgetBucket, Company, User, RecurringSchedule } from 
 import { requireAuth } from '../../middleware/auth.js';
 import { notifyBudgetThresholds } from '../../services/scheduleService.js';
 import { logActivity } from '../../services/activityService.js';
-import { applyDateBounds } from '../../utils/dateRange.js';
+import { applyDateBounds, sumAmount } from '../../utils/dateRange.js';
 import { assertCompaniesInOrg } from '../../utils/tenant.js';
 import { assertRead, assertWrite, assertDelete, assertMonthOpen, applyCompanyScope, rememberVendor, nextMonthOnDay } from '../../utils/access.js';
 
@@ -151,9 +151,10 @@ export const expenseResolvers = {
         sortCriteria = { amount: -1, date: -1 };
       }
 
-      const [expenses, totalCount] = await Promise.all([
+      const [expenses, totalCount, totalAmount] = await Promise.all([
         Expense.find(query).sort(sortCriteria).skip(skip).limit(safeLimit),
         Expense.countDocuments(query),
+        sumAmount(Expense, query),
       ]);
 
       const incomeIds = new Set();
@@ -178,6 +179,7 @@ export const expenseResolvers = {
       return {
         expenses,
         totalCount,
+        totalAmount,
         page: safePage,
         totalPages: Math.ceil(totalCount / safeLimit) || 1,
       };

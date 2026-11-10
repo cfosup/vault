@@ -24,6 +24,8 @@ import { useAuthStore } from '../store/authStore';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { CountUp, RollingAmount } from '../components/common/CountUp';
 import { formatDisplayDate } from '../utils/dateUtils';
+import { PeriodFilter } from '../components/common/PeriodFilter';
+import { periodLabel, periodRange } from '../utils/period';
 
 export const IncomePage = () => {
   const { activeCompanyId, token, user } = useAuthStore();
@@ -33,6 +35,9 @@ export const IncomePage = () => {
   const [entryMode, setEntryMode] = useState('quick'); // 'quick' | 'batch'
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [datePreset, setDatePreset] = useState('this_month');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
 
   // Quick Single-Entry Form State
   const [quickDate, setQuickDate] = useState(new Date().toISOString().split('T')[0]);
@@ -65,12 +70,19 @@ export const IncomePage = () => {
   const companies = compData?.companies || [];
   const activeCompany = companies.find((c) => c.id === activeCompanyId);
 
+  const { startDate, endDate } = useMemo(
+    () => periodRange(datePreset, customStart, customEnd),
+    [datePreset, customStart, customEnd]
+  );
+
   const { data, loading, refetch } = useQuery(GET_INCOMES, {
     variables: {
       filter: {
         companyId: activeCompanyId || null,
         search: search || null,
         includeDeleted: showDeleted,
+        startDate: startDate || null,
+        endDate: endDate || null,
       },
       page,
       limit: 15,
@@ -92,14 +104,12 @@ export const IncomePage = () => {
   const totalCount = data?.incomes?.totalCount || 0;
 
   // Summary Metrics
-  const totalInflow = useMemo(() => {
-    return incomes.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-  }, [incomes]);
+  const totalInflow = data?.incomes?.totalAmount || 0;
 
   const avgInflow = useMemo(() => {
-    if (!incomes.length) return 0;
-    return Math.round(totalInflow / incomes.length);
-  }, [incomes, totalInflow]);
+    if (!totalCount) return 0;
+    return Math.round(totalInflow / totalCount);
+  }, [totalCount, totalInflow]);
 
   // Quick Form Submit
   const blankIncomeFields = () => {
@@ -307,7 +317,7 @@ export const IncomePage = () => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Received on this page
+              Received {periodLabel(datePreset)}
             </span>
             {listLoading ? (
               <RollingAmount />
@@ -623,6 +633,17 @@ export const IncomePage = () => {
           )}
         </div>
       )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <PeriodFilter
+          preset={datePreset}
+          onPreset={(value) => { setDatePreset(value); setPage(1); }}
+          customStart={customStart}
+          customEnd={customEnd}
+          onCustomStart={(value) => { setCustomStart(value); setPage(1); }}
+          onCustomEnd={(value) => { setCustomEnd(value); setPage(1); }}
+        />
+      </div>
 
       {/* Search Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
